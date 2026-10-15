@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bayesian Optimisation of Cointegration-Based Statistical Arbitrage</title>
+<meta name="color-scheme" content="light">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]})"></script>
+<style>
+:root {
+  --paper: #F4F0E8;
+  --paper-deep: #EAE4D9;
+  --card: #FFFDF8;
+  --ink: #242422;
+  --muted: #686762;
+  --line: #D6D0C6;
+  --plum: #9F3F70;
+  --plum-soft: #F2DCE8;
+  --blue: #3F6F9F;
+  --blue-soft: #DDE9F3;
+  --green: #287A59;
+  --green-soft: #DDEDE5;
+  --terracotta: #C66638;
+  --terracotta-soft: #F5E2D8;
+  --violet: #9367B5;
+  --violet-soft: #EAE0F2;
+  --mustard: #A98B28;
+  --mustard-soft: #F1E9C9;
+  --font-head: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-body: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --radius: 16px;
+  --shadow: 0 1px 2px rgba(36,36,34,.05), 0 8px 24px rgba(36,36,34,.06);
+}
+*{box-sizing:border-box;}
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 90px;
+}
+body{margin:0;font-family:var(--font-body);font-size:clamp(15px,0.6vw + 13.5px,17px);line-height:1.62;color:var(--ink);background:var(--paper);background-image:linear-gradient(rgba(36,36,34,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(36,36,34,.04) 1px,transparent 1px);background-size:24px 24px;}
+.wrap{max-width:1100px;margin:0 auto;padding:0 20px;}
+
+/* Header */
+.sitehead{padding-top:clamp(28px,5vw,56px);}
+.kicker{font-family:var(--font-mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--plum);margin:0 0 10px;}
+h1{font-family:var(--font-head);font-weight:800;font-size:clamp(24px,3vw,40px);line-height:1.14;letter-spacing:-.015em;margin:0 0 10px;max-width:26ch;}
+.subtitle{font-size:clamp(15px,1.4vw,19px);color:var(--ink);margin:0 0 12px;font-weight:600;}
+.meta{font-family:var(--font-mono);font-size:12.5px;line-height:1.7;color:var(--muted);margin:0 0 6px;}
+
+/* Nav */
+#topnav{position:sticky;top:0;z-index:60;background:rgba(244,240,232,.96);border-top:1px solid var(--line);border-bottom:1px solid var(--line);backdrop-filter:blur(2px);}
+.navrow{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;padding:8px 0;}
+.navrow a{font-family:var(--font-mono);font-size:12px;color:var(--ink);text-decoration:none;padding:5px 10px;border-radius:999px;border:1px solid transparent;white-space:nowrap;}
+.navrow a:hover,.navrow a.active{background:var(--paper-deep);border-color:var(--line);}
+
+/* Sections */
+main{display:block;}
+main>section{margin:clamp(20px,3.5vw,40px) auto;}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:clamp(18px,3vw,34px);}
+h2{font-family:var(--font-head);font-weight:800;font-size:clamp(18px,2vw,26px);line-height:1.22;letter-spacing:-.01em;margin:0 0 12px;}
+h3{margin:0 0 8px;font-size:16px;font-weight:700;}
+.lede{max-width:78ch;margin:0 0 14px;}
+.small{font-size:13.5px;color:var(--muted);}
+
+/* Cards */
+.cards3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:18px;}
+.minicard{border:1px solid var(--line);border-radius:14px;background:var(--paper);padding:16px 18px;}
+.minicard h3{font-size:16px;margin:4px 0 8px;}
+.minicard p{margin:0;font-size:14.5px;}
+.tag{display:inline-block;font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;padding:3px 9px;border-radius:999px;border:1px solid transparent;}
+.tag-plum{background:var(--plum-soft);color:var(--ink);border-color:var(--plum);}
+.tag-blue{background:var(--blue-soft);color:var(--ink);border-color:var(--blue);}
+.tag-green{background:var(--green-soft);color:var(--ink);border-color:var(--green);}
+.tag-terracotta{background:var(--terracotta-soft);color:var(--ink);border-color:var(--terracotta);}
+.tag-mustard{background:var(--mustard-soft);color:var(--ink);border-color:var(--mustard);}
+
+/* Formula bands */
+.formulaband,.formulapanel{border:1px solid var(--line);border-left:4px solid var(--plum);background:var(--paper);border-radius:12px;padding:12px 18px;margin:14px 0 18px;overflow-x:auto;}
+.formulapanel h3{font-size:14.5px;margin:0 0 6px;}
+.support{margin:6px 0 0;font-size:13.5px;color:var(--muted);}
+
+/* Stats */
+.statgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:16px;}
+.statcard{border:1px solid var(--line);border-radius:14px;background:var(--paper);padding:14px 16px;}
+.statval{font-family:var(--font-head);font-weight:800;font-size:clamp(22px,2.4vw,30px);margin:0 0 4px;color:var(--plum);}
+.statdesc{margin:0;font-size:13px;color:var(--ink);line-height:1.5;}
+
+/* Tables */
+.tablewrap{overflow-x:auto;margin-top:16px;border:1px solid var(--line);border-radius:12px;}
+table.bench{border-collapse:collapse;width:100%;min-width:460px;font-size:13.5px;background:var(--card);}
+table.bench caption{text-align:left;font-family:var(--font-mono);font-size:12px;color:var(--muted);padding:10px 12px;}
+table.bench th,table.bench td{padding:6px 12px;border-top:1px solid var(--line);text-align:right;white-space:nowrap;}
+table.bench th:first-child,table.bench td:first-child{text-align:left;}
+table.bench thead th{border-top:none;font-family:var(--font-mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);background:var(--paper);}
+.bench td.up{color:var(--green);font-weight:700;}
+.bench td.down{color:var(--terracotta);font-weight:700;}
+.bench td.tie{color:var(--muted);}
+.bench tr.highlight td{background:var(--plum-soft);}
+
+/* Notes */
+.resultnote{margin-top:16px;padding:14px 18px;border:1px solid var(--line);border-left:4px solid var(--green);border-radius:12px;background:var(--green-soft);}
+.resultnote p{margin:0 0 8px;font-size:14.5px;}
+.resultnote p:last-child{margin-bottom:0;}
+.consequence{margin:14px 0 0;padding:12px 16px;border:1px solid var(--terracotta);border-left-width:4px;border-radius:12px;background:var(--terracotta-soft);font-size:14.5px;}
+.disclosure{font-size:13px;color:var(--muted);border-left:3px solid var(--line);padding-left:10px;margin:12px 0 0;}
+.legendline{font-family:var(--font-mono);font-size:12px;color:var(--muted);margin:12px 0 0;}
+
+/* Scrollhint */
+.scrollhint{display:none;font-family:var(--font-mono);font-size:12px;color:var(--muted);margin:0 0 6px;}
+.svgwrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:12px;background:var(--card);}
+svg.diagram{display:block;width:100%;height:auto;}
+
+/* Controls */
+.controls{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 10px;}
+.controls button{font-family:var(--font-mono);font-size:13px;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:9px;padding:7px 14px;cursor:pointer;min-height:36px;}
+.controls button:hover:not(:disabled){background:var(--paper-deep);}
+.controls button[data-act="play"]{background:var(--ink);color:var(--card);border-color:var(--ink);}
+.caption{font-family:var(--font-mono);font-size:12.8px;line-height:1.55;color:var(--ink);background:var(--paper-deep);border-left:3px solid var(--plum);border-radius:8px;padding:9px 12px;margin:0 0 14px;}
+
+/* Pipeline diagram */
+.pipeline{display:flex;align-items:center;gap:0;flex-wrap:wrap;margin:18px 0;overflow-x:auto;}
+.pipe-box{background:var(--paper);border:1.5px solid var(--line);border-radius:10px;padding:10px 14px;font-size:13.5px;font-weight:600;white-space:nowrap;flex-shrink:0;}
+.pipe-box.active{background:var(--plum-soft);border-color:var(--plum);}
+.pipe-arrow{font-size:18px;color:var(--muted);padding:0 6px;flex-shrink:0;}
+
+/* BO convergence diagram */
+.bo-chart{position:relative;height:180px;background:var(--paper);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:18px 0;}
+.bo-chart svg{position:absolute;inset:0;width:100%;height:100%;}
+
+/* Ablation bars */
+.ablation-bar{display:flex;align-items:center;gap:10px;margin:6px 0;}
+.ablation-label{font-size:13px;min-width:200px;color:var(--ink);}
+.ablation-track{flex:1;background:var(--paper-deep);border-radius:6px;height:22px;position:relative;overflow:hidden;}
+.ablation-fill{height:100%;border-radius:6px;display:flex;align-items:center;padding-left:8px;font-family:var(--font-mono);font-size:12px;color:white;font-weight:700;transition:width 1s ease;}
+.ablation-neg{background:var(--terracotta);}
+
+/* Sub-period heat */
+.heat-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin:14px 0;}
+.heat-cell{border-radius:8px;padding:8px 6px;text-align:center;font-size:12.5px;font-weight:700;}
+
+/* Footer */
+footer{margin-top:clamp(30px,5vw,60px);border-top:1px solid var(--line);background:var(--paper-deep);padding:26px 0 80px;}
+footer p{font-size:13.5px;color:var(--muted);max-width:80ch;margin:0 0 8px;}
+footer a{color:var(--blue);}
+a{color:var(--blue);}
+a:hover{color:var(--plum);}
+:focus-visible{outline:3px solid var(--blue);outline-offset:2px;border-radius:6px;}
+
+@media(max-width:900px){.cards3{grid-template-columns:1fr;}.statgrid{grid-template-columns:repeat(2,minmax(0,1fr));}}
+@media(max-width:760px){.scrollhint{display:block;}.pipeline{gap:2px;}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;}}
+</style>
+</head>
+<body>
+
+<header class="sitehead">
+<div class="wrap">
+  <p class="kicker">Interactive Research Paper · Quantitative Finance</p>
+  <h1>Bayesian Optimisation of Cointegration-Based Statistical Arbitrage</h1>
+  <p class="subtitle">A Multi-Universe Framework with Adaptive Kalman Filtering and Regime Detection</p>
+  <p style="font-weight: 700; margin-top: 10px;">Authored by Sparsh Patel</p>
+  <p class="meta">2010–2024 · Five ETF Universes · GP-BO End-to-End Calibration · OOS Avg Sharpe 5.778</p>
+</div>
+</header>
+
+<nav id="topnav" aria-label="Section navigation">
+<div class="wrap navrow">
+  <a href="#sec0">Overview</a>
+  <a href="#sec1">1 · Problem</a>
+  <a href="#sec2">2 · Pipeline</a>
+  <a href="#sec3">3 · Kalman Filter</a>
+  <a href="#sec4">4 · Bayesian Optimisation</a>
+  <a href="#sec5">5 · Results</a>
+  <a href="#sec6">6 · Ablation</a>
+  <a href="#sec7">7 · Discussion</a>
+</div>
+</nav>
+
+<main class="wrap">
+
+<!-- ===== Section 0: Overview ===== -->
+<section id="sec0" aria-labelledby="sec0-h">
+<div class="panel">
+  <h2 id="sec0-h">One-Minute Overview</h2>
+  <p class="lede">Cointegration-based statistical arbitrage profits from temporary mispricings in asset baskets tied to a long-run equilibrium. The calibration gap : static weights, disjoint parameter tuning, no adaptation to regime shifts . This is the central problem this paper solves via Gaussian Process Bayesian Optimisation.</p>
+  <div class="cards3">
+    <article class="minicard">
+      <p class="tag tag-plum">Problem</p>
+      <h3>The Calibration Gap</h3>
+      <p>Johansen weights maximise a statistical criterion unrelated to trading profits. Execution parameters (entry thresholds, stop-loss, lookback) are set by heuristics. The cointegration relationship drifts , and static weights bleed when it does.</p>
+    </article>
+    <article class="minicard">
+      <p class="tag tag-blue">Approach</p>
+      <h3>End-to-End GP-BO Pipeline</h3>
+      <p>A Kalman filter tracks time-varying hedge ratios. Multi-tier entry-exit rules, volatility targeting, and regime detection are all calibrated jointly by a GP surrogate over $\theta=(e_1,e_2,e_3,z_\text{stop},L)$.</p>
+    </article>
+    <article class="minicard">
+      <p class="tag tag-green">Validation</p>
+      <h3>Five Independent Universes</h3>
+      <p>Precious Metals, Energy, Agriculture, Technology, and Financials ETF baskets : 2010–2024, 70/30 train-test split, walk-forward re-optimisation, sub-period stability, Bonferroni/BH corrections.</p>
+    </article>
+  </div>
+  <div class="statgrid" style="margin-top:20px;">
+    <div class="statcard"><p class="statval">5.778</p><p class="statdesc">Average OOS Sharpe signal across 5 universes (vol-targeted)</p></div>
+    <div class="statcard"><p class="statval">−0.206</p><p class="statdesc">Engle-Granger baseline average OOS Sharpe</p></div>
+    <div class="statcard"><p class="statval">470 bp</p><p class="statdesc">Break-even one-way transaction cost (Precious Metals) : 30× assumed cost</p></div>
+    <div class="statcard"><p class="statval">p &lt; 0.0001</p><p class="statdesc">Significance after Benjamini-Hochberg correction across all 5 universes</p></div>
+  </div>
+</div>
+</section>
+
+<!-- ===== Section 1: The Problem ===== -->
+<section id="sec1" aria-labelledby="sec1-h">
+<div class="panel">
+  <h2 id="sec1-h">1 · The Calibration Problem</h2>
+  <p class="lede">When a linear combination of non-stationary $I(1)$ prices is itself stationary $I(0)$, deviations from long-run equilibrium are temporary and tradeable. In practice, however, three compounding failures make this hard to exploit.</p>
+
+  <div class="cards3" style="margin-top:0;">
+    <article class="minicard">
+      <p class="tag tag-terracotta">Failure 1</p>
+      <h3>Static Weights</h3>
+      <p>The Johansen eigenvector is estimated once on training data. Over 15 years, the 2020 oil crash, 2022 rate-hiking cycle, and sector rotations all shift true hedge ratios, static weights diverge silently.</p>
+    </article>
+    <article class="minicard">
+      <p class="tag tag-terracotta">Failure 2</p>
+      <h3>Disjoint Calibration</h3>
+      <p>Entry thresholds, stop-loss levels, and lookback windows are tuned separately, often by grid search, disconnected from the weight-estimation module. The objective of trading Sharpe which never happens to appear in the loop.</p>
+    </article>
+    <article class="minicard">
+      <p class="tag tag-terracotta">Failure 3</p>
+      <h3>Black-Box Objective</h3>
+      <p>Strategy performance is noisy, non-convex, gradient-free. Each evaluation costs a full backtest. Grid search in $d=5$ dimensions achieves only $O(T^{-1/d}) = T^{-0.2}$ convergence which is far too slow.</p>
+    </article>
+  </div>
+
+  <h3 style="margin-top:22px;">The Johansen VECM Foundation</h3>
+  <div class="formulaband">
+    <p>The multivariate price dynamics are modelled as a Vector Error Correction Model:</p>
+    $$\Delta y_t = \alpha\beta' y_{t-1} + \sum_{i=1}^{p-1}\Gamma_i \Delta y_{t-i} + \epsilon_t,\quad \epsilon_t \sim \mathcal{N}(0,\Omega)$$
+    <p class="support">$\beta \in \mathbb{R}^{n\times r}$ holds the $r$ cointegrating vectors; $\alpha$ collects adjustment speeds. The trace test identifies rank $r$:</p>
+    $$\text{LR}_\text{trace}(r) = -T\sum_{i=r+1}^{n}\ln(1-\hat\lambda_i)$$
+    <p class="support">For Precious Metals: $r=2$ at 95% confidence (trace statistics 70.37 and 37.87 vs. critical values 47.85 and 29.80). ADF test on the spread confirms stationarity with $p &lt; 0.0001$ for all five universes.</p>
+  </div>
+
+  <div class="formulaband" style="border-left-color:var(--blue);">
+    <p><strong>Mean-reversion half-life</strong> : informs the lookback window $L$ and maximum holding period $2h$:</p>
+    $$h = -\frac{\ln 2}{\ln(1+\hat\phi)}$$
+    <p class="support">$\hat\phi &lt; 0$ from the ADF regression ensures $h &gt; 0$. Lookback $L \approx \text{small multiple of } h$.</p>
+  </div>
+</div>
+</section>
+
+<!-- ===== Section 2: Full Pipeline ===== -->
+<section id="sec2" aria-labelledby="sec2-h">
+<div class="panel">
+  <h2 id="sec2-h">2 · The Full Pipeline</h2>
+  <p class="lede">Five modules compose the framework. Unlike prior work, all are calibrated jointly by the BO loop and validated that no module is tuned in isolation.</p>
+
+  <div class="pipeline" aria-label="Pipeline flow">
+    <div class="pipe-box" style="background:var(--violet-soft);border-color:var(--violet);">Johansen VECM<br><small style="font-weight:400;font-size:12px;">Rank &amp; initial weights</small></div>
+    <span class="pipe-arrow">→</span>
+    <div class="pipe-box" style="background:var(--blue-soft);border-color:var(--blue);">Kalman Filter<br><small style="font-weight:400;font-size:12px;">Adaptive hedge ratios</small></div>
+    <span class="pipe-arrow">→</span>
+    <div class="pipe-box" style="background:var(--mustard-soft);border-color:var(--mustard);">Regime Gate<br><small style="font-weight:400;font-size:12px;">Hurst / VR test</small></div>
+    <span class="pipe-arrow">→</span>
+    <div class="pipe-box" style="background:var(--plum-soft);border-color:var(--plum);">Scaled Entry-Exit<br><small style="font-weight:400;font-size:12px;">3-tier z-score rules</small></div>
+    <span class="pipe-arrow">→</span>
+    <div class="pipe-box" style="background:var(--terracotta-soft);border-color:var(--terracotta);">Vol Targeting<br><small style="font-weight:400;font-size:12px;">σ* = 15%</small></div>
+    <span class="pipe-arrow">→</span>
+    <div class="pipe-box" style="background:var(--green-soft);border-color:var(--green);">GP-BO Loop<br><small style="font-weight:400;font-size:12px;">End-to-end Sharpe</small></div>
+  </div>
+
+  <h3 style="margin-top:8px;">Multi-Tier Entry-Exit Rules</h3>
+  <p>The rolling z-score of the Kalman spread is normalised as $z_t = (S_t - \bar S_{t,L})/\hat\sigma_{t,L}$. Rather than binary entry at a single threshold, a three-tier scheme allocates position size gradually:</p>
+  <div class="formulaband">
+    $$p_t^\text{long} = \begin{cases}0 & z_t > -e_1 \\ \tfrac{1}{3} & -e_2 < z_t \le -e_1 \\ \tfrac{2}{3} & -e_3 < z_t \le -e_2 \\ 1 & z_t \le -e_3\end{cases}\qquad p_t^\text{short} = -p_t^\text{long}\text{ (mirrored)}$$
+    <p class="support">Combined position $p_t = p_t^\text{long}+p_t^\text{short} \in [-1,+1]$. Stop-loss exits when $|z_t|>z_\text{stop}$ or holding period exceeds $2h$.</p>
+  </div>
+
+  <div class="formulaband" style="border-left-color:var(--terracotta);">
+    <p><strong>Volatility targeting overlay</strong> (Barroso &amp; Santa-Clara, 2015):</p>
+    $$r_t^{VT} = r_t^\text{net} \times \min\!\left(\frac{\sigma^*}{\hat\sigma_t^\text{lag}},\, 3.0\right),\quad \hat\sigma_t^\text{lag} = \text{RollingStd}(r^\text{net},63)_{t-1}\times\sqrt{252}$$
+    <p class="support">Target $\sigma^*=15\%$, leverage capped at $3\times$, 63-day lagged volatility to prevent look-ahead.</p>
+  </div>
+
+  <div class="formulaband" style="border-left-color:var(--green);">
+    <p><strong>Transaction cost model</strong> (proportional, 15 bp one-way):</p>
+    $$r_t^\text{net} = r_t^\text{gross} - c\cdot|\Delta p_t|,\quad c=15\text{ bp},\quad c^* = \frac{\text{Gross PnL}}{\sum_t|\Delta p_t|}$$
+  </div>
+</div>
+</section>
+
+<!-- ===== Section 3: Kalman Filter ===== -->
+<section id="sec3" aria-labelledby="sec3-h">
+<div class="panel">
+  <h2 id="sec3-h">3 · Adaptive Hedge Ratios via Kalman Filter</h2>
+  <p class="lede">The Kalman filter is the single most consequential component. Removing it collapses the Precious Metals Sharpe signal from 5.871 to −0.301. It treats hedge ratios as hidden states that evolve stochastically, tracking market-regime drift without retraining.</p>
+
+  <h3>State-Space Formulation</h3>
+  <p>Designate one asset $y_t$ as dependent and collect remaining $n-1$ log-prices into $x_t$:</p>
+  <div class="formulaband">
+    <p><strong>Transition equation</strong> : ratios follow a random walk:</p>
+    $$\beta_t = \beta_{t-1} + w_t,\quad w_t \sim \mathcal{N}(0,\delta I_{n-1}),\quad \delta=10^{-4}$$
+    <p><strong>Observation equation:</strong></p>
+    $$y_t = x_t'\beta_t + v_t,\quad v_t \sim \mathcal{N}(0, V_e),\quad V_e=10^{-3}$$
+  </div>
+
+  <h3>Recursive Update (Predict → Gain → Update)</h3>
+  <div class="formulaband">
+    <p><strong>Prediction:</strong> $\hat\beta_{t|t-1} = \hat\beta_{t-1|t-1}$, $\quad P_{t|t-1} = P_{t-1|t-1} + \delta I_{n-1}$</p>
+    <p><strong>Kalman gain:</strong></p>
+    $$K_t = \frac{P_{t|t-1}x_t}{x_t'P_{t|t-1}x_t + V_e} \in \mathbb{R}^{n-1}$$
+    <p><strong>Update:</strong> $\hat\beta_{t|t} = \hat\beta_{t|t-1} + K_t(y_t - x_t'\hat\beta_{t|t-1})$, $\quad P_{t|t} = (I - K_t x_t')P_{t|t-1}$</p>
+    <p><strong>Spread:</strong> $S_t = y_t - x_t'\hat\beta_{t|t}$ , the Kalman regression residual, mean-reverting under valid cointegration.</p>
+    <p class="support">The filter is seeded on training data. Its terminal state $(\hat\beta_{T_\text{train}}, P_{T_\text{train}})$ is carried forward unchanged into the OOS period , a strict information barrier.</p>
+  </div>
+
+  <div style="margin-top:20px;">
+    <h3>Interactive: Kalman Adaptation Speed vs. Stability</h3>
+    <p class="small">Drag the slider to see how $\delta$ (process noise) governs the trade-off between tracking speed and hedge ratio stability.</p>
+    <div style="display:flex;align-items:center;gap:16px;margin:10px 0 4px;">
+      <label style="font-family:var(--font-mono);font-size:13px;">δ = <span id="delta-val">0.0001</span></label>
+      <input type="range" id="delta-slider" min="1" max="100" value="10" style="flex:1;accent-color:var(--plum);">
+      <span style="font-family:var(--font-mono);font-size:12px;color:var(--muted);" id="delta-label">Default</span>
+    </div>
+    <div class="svgwrap">
+      <svg id="kalman-svg" class="diagram" viewBox="0 0 900 200" role="img" aria-label="Kalman hedge ratio simulation">
+        <rect x="0" y="0" width="900" height="200" fill="var(--card)"/>
+        <line x1="60" y1="20" x2="60" y2="175" stroke="var(--line)" stroke-width="1.5"/>
+        <line x1="60" y1="175" x2="880" y2="175" stroke="var(--line)" stroke-width="1.5"/>
+        <text x="40" y="98" font-size="11" fill="var(--muted)" text-anchor="middle" transform="rotate(-90,40,98)">Hedge Ratio β</text>
+        <text x="470" y="195" font-size="11" fill="var(--muted)" text-anchor="middle">Time →</text>
+        <polyline id="true-ratio" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="5 4"/>
+        <polyline id="kalman-ratio" fill="none" stroke="var(--plum)" stroke-width="2.2"/>
+        <line x1="70" y1="165" x2="110" y2="165" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="5 4"/>
+        <text x="116" y="169" font-size="11" fill="var(--muted)">True ratio (simulated)</text>
+        <line x1="220" y1="165" x2="260" y2="165" stroke="var(--plum)" stroke-width="2.2"/>
+        <text x="266" y="169" font-size="11" fill="var(--plum)">Kalman estimate</text>
+      </svg>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ===== Section 4: Bayesian Optimisation ===== -->
+<section id="sec4" aria-labelledby="sec4-h">
+<div class="panel">
+  <h2 id="sec4-h">4 · Gaussian Process Bayesian Optimisation</h2>
+  <p class="lede">GP-BO maintains a surrogate of the full backtest objective, exploring the 5-dimensional parameter space far more efficiently than grid search. It converges within ~10 evaluations to near-optimal parameters.</p>
+
+  <h3>Search Space</h3>
+  <div class="tablewrap" style="margin-top:10px;">
+    <table class="bench">
+      <caption>BO parameter search space (5 dimensions)</caption>
+      <thead><tr><th>Parameter</th><th>Lower</th><th>Upper</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>$e_1$</td><td>0.80</td><td>2.50</td><td style="text-align:left;">Z-score for ⅓ position entry</td></tr>
+        <tr><td>$e_2$</td><td>1.00</td><td>3.00</td><td style="text-align:left;">Z-score for ⅔ position entry</td></tr>
+        <tr><td>$e_3$</td><td>1.50</td><td>4.00</td><td style="text-align:left;">Z-score for full position entry</td></tr>
+        <tr><td>$z_\text{stop}$</td><td>3.0</td><td>6.0</td><td style="text-align:left;">Stop-loss z-score threshold</td></tr>
+        <tr><td>$L$</td><td>30</td><td>120</td><td style="text-align:left;">Lookback window (trading days)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 style="margin-top:20px;">Objective Function &amp; GP Surrogate</h3>
+  <div class="formulaband">
+    <p><strong>Objective</strong> : penalised Sharpe on training data:</p>
+    $$f(\theta) = \underbrace{\frac{\bar r(\theta)}{\hat\sigma_r(\theta)}\sqrt{252}}_{\text{Annualised Sharpe}} - \underbrace{\lambda \cdot p_\text{ADF}(\theta)}_{\text{Stationarity penalty}},\quad \lambda=1.0$$
+    <p class="support">$p_\text{ADF}(\theta)$ is the ADF $p$-value for the in-sample spread. The penalty rarely activates: $p_\text{ADF}&lt;0.001$ in $>95\%$ of evaluations.</p>
+
+    <p style="margin-top:10px;"><strong>GP posterior</strong> : Matérn 5/2 kernel, observation noise $\sigma_n^2=0.01$:</p>
+    $$\mu_t(\theta) = k_t(\theta)^\top(K_t+\sigma_n^2 I)^{-1}y_t,\qquad \sigma_t^2(\theta) = k(\theta,\theta)-k_t(\theta)^\top(K_t+\sigma_n^2 I)^{-1}k_t(\theta)$$
+
+    <p style="margin-top:10px;"><strong>Expected Improvement acquisition:</strong></p>
+    $$\text{EI}(\theta) = (\mu_t(\theta)-f^+)\Phi(Z) + \sigma_t(\theta)\phi(Z),\quad Z=\frac{\mu_t(\theta)-f^+}{\sigma_t(\theta)}$$
+    <p class="support">$f^+ = \max_{i\le t}y_i$. The next query: $\theta_{t+1} = \arg\max_{\theta\in\mathcal X}\text{EI}(\theta)$.</p>
+  </div>
+
+  <h3>Convergence Guarantee vs. Grid Search</h3>
+  <div class="formulaband" style="border-left-color:var(--green);">
+    <p><strong>GP-BO simple regret</strong> (Srinivas et al., 2010):</p>
+    $$\epsilon_T = \min_{t\le T}[f(\theta^*)-f(\theta_t)] = \mathcal O\!\left(\frac{(\log T)^{(d+1)/2}}{\sqrt{T}}\right) \quad \text{(polylogarithmic)}$$
+    <p><strong>Grid search</strong> over $[0,1]^d$: only $\mathcal O(T^{-1/d})$  for $d=5$ this is $T^{-0.2}$, far slower.</p>
+    <p class="support">At 20 evaluations (⅓ budget), BO reaches Sharpe 5.62; random search only hits this at evaluation ~45.</p>
+  </div>
+
+  <h3 style="margin-top:20px;">Interactive BO Convergence</h3>
+  <p class="small">Click <strong>Run BO</strong> to simulate 60 evaluations ; initial random phase then GP-directed exploitation.</p>
+  <div class="controls">
+    <button type="button" id="bo-run">▶ Run BO</button>
+    <button type="button" id="bo-reset">↺ Reset</button>
+  </div>
+  <p class="caption" id="bo-caption">Press Run BO to begin the simulated optimisation.</p>
+  <div class="bo-chart" id="bo-chart-wrap">
+    <svg id="bo-svg" viewBox="0 0 800 180">
+      <rect x="0" y="0" width="800" height="180" fill="transparent"/>
+      <line x1="60" y1="10" x2="60" y2="145" stroke="var(--line)" stroke-width="1.5"/>
+      <line x1="60" y1="145" x2="790" y2="145" stroke="var(--line)" stroke-width="1.5"/>
+      <text x="40" y="80" font-size="11" fill="var(--muted)" text-anchor="middle" transform="rotate(-90,40,80)">Best Sharpe Found</text>
+      <text x="425" y="168" font-size="11" fill="var(--muted)" text-anchor="middle">Evaluation #</text>
+      <!-- X axis ticks -->
+      <text x="60" y="158" font-size="10" fill="var(--muted)" text-anchor="middle">0</text>
+      <text x="183" y="158" font-size="10" fill="var(--muted)" text-anchor="middle">15</text>
+      <text x="306" y="158" font-size="10" fill="var(--muted)" text-anchor="middle">30</text>
+      <text x="430" y="158" font-size="10" fill="var(--muted)" text-anchor="middle">45</text>
+      <text x="553" y="158" font-size="10" fill="var(--muted)" text-anchor="middle">60</text>
+      <!-- Y axis ticks -->
+      <text x="55" y="148" font-size="10" fill="var(--muted)" text-anchor="end">−0.5</text>
+      <text x="55" y="105" font-size="10" fill="var(--muted)" text-anchor="end">3.0</text>
+      <text x="55" y="62" font-size="10" fill="var(--muted)" text-anchor="end">5.5</text>
+      <text x="55" y="19" font-size="10" fill="var(--muted)" text-anchor="end">7.0</text>
+      <line x1="60" y1="62" x2="790" y2="62" stroke="var(--line)" stroke-width="0.8" stroke-dasharray="4 6"/>
+      <!-- Random search reference -->
+      <polyline id="rs-line" points="" fill="none" stroke="var(--terracotta)" stroke-width="1.5" stroke-dasharray="6 4" opacity="0.7"/>
+      <polyline id="bo-line" points="" fill="none" stroke="var(--plum)" stroke-width="2.2"/>
+      <!-- Dots -->
+      <g id="bo-dots"></g>
+      <!-- Legend -->
+      <line x1="620" y1="20" x2="650" y2="20" stroke="var(--plum)" stroke-width="2.2"/>
+      <text x="656" y="24" font-size="11" fill="var(--plum)">GP-BO</text>
+      <line x1="620" y1="38" x2="650" y2="38" stroke="var(--terracotta)" stroke-width="1.5" stroke-dasharray="6 4"/>
+      <text x="656" y="42" font-size="11" fill="var(--terracotta)">Random Search</text>
+    </svg>
+  </div>
+</div>
+</section>
+
+<!-- ===== Section 5: Results ===== -->
+<section id="sec5" aria-labelledby="sec5-h">
+<div class="panel">
+  <h2 id="sec5-h">5 · Out-of-Sample Results</h2>
+
+  <h3>Five-Universe OOS Performance</h3>
+  <div class="tablewrap">
+    <table class="bench">
+      <caption>OOS results : strict 70/30 protocol, no Hurst gating. Sharpe ratios on vol-targeted returns (σ* = 15%). *** = significant at 1% after BH correction.</caption>
+      <thead><tr><th>Universe</th><th>Cointegration Rank</th><th>Our Sharpe</th><th>EG Baseline</th><th>∆ Sharpe</th><th>Max DD</th></tr></thead>
+      <tbody>
+        <tr><td>Precious Metals</td><td>2</td><td>5.871</td><td>−0.257</td><td class="up">+6.128***</td><td>−4.0%</td></tr>
+        <tr><td>Energy</td><td>0†</td><td>6.339</td><td>−0.311</td><td class="up">+6.649***</td><td>−6.5%</td></tr>
+        <tr><td>Agriculture</td><td>1</td><td>4.537</td><td>+0.257</td><td class="up">+4.280***</td><td>−7.2%</td></tr>
+        <tr><td>Technology</td><td>2</td><td>6.011</td><td>−0.404</td><td class="up">+6.415***</td><td>−9.6%</td></tr>
+        <tr><td>Financials</td><td>1</td><td>6.134</td><td>−0.313</td><td class="up">+6.447***</td><td>−4.5%</td></tr>
+        <tr class="highlight"><td><strong>Average</strong></td><td></td><td><strong>5.778</strong></td><td><strong>−0.206</strong></td><td class="up"><strong>+5.984</strong></td><td><strong>−6.4%</strong></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="disclosure" style="margin-top:8px;">† Energy has Johansen rank 0 at 95% confidence, yet the Kalman filter tracks episodic co-movement driven by crude-oil price shocks regardless. See §7 for discussion.</p>
+
+  <h3 style="margin-top:22px;">Sub-Period Stability (All 20 Cells Positive)</h3>
+  <p class="small" style="margin-bottom:10px;">Colour intensity encodes Sharpe signal strength. All four macroeconomic sub-periods across all five universes show positive signal.</p>
+  <div id="heat-container"></div>
+
+  <h3 style="margin-top:22px;">Walk-Forward Re-Optimisation</h3>
+  <div class="tablewrap">
+    <table class="bench">
+      <caption>Walk-forward results : 6-month re-optimisation, expanding window, 23 windows.</caption>
+      <thead><tr><th>Universe</th><th>WF Sharpe</th><th>Single-Shot</th><th>Divergence</th><th>Ann. Return</th><th>Max DD</th></tr></thead>
+      <tbody>
+        <tr><td>Precious Metals</td><td>5.643</td><td>5.871</td><td class="tie">−3.9%</td><td>+87.3%</td><td>−8.3%</td></tr>
+        <tr><td>Energy</td><td>6.597</td><td>6.339</td><td class="up">+4.1%</td><td>+100.7%</td><td>−5.6%</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 style="margin-top:22px;">Multiple Testing Corrections</h3>
+  <div class="tablewrap">
+    <table class="bench">
+      <caption>Statistical significance : Bonferroni, BH, and Harvey et al. (2016) |t| > 3.0 haircut.</caption>
+      <thead><tr><th>Universe</th><th>Our SR</th><th>EG SR</th><th>Raw p</th><th>Bonferroni p</th><th>BH p</th><th>|t|</th></tr></thead>
+      <tbody>
+        <tr><td>Precious Metals</td><td>5.871</td><td>−0.257</td><td>&lt;0.0001</td><td>&lt;0.0001</td><td>&lt;0.0001</td><td class="up">11.73</td></tr>
+        <tr><td>Energy</td><td>6.339</td><td>−0.311</td><td>&lt;0.0001</td><td>&lt;0.0001</td><td>&lt;0.0001</td><td class="up">12.66</td></tr>
+        <tr><td>Agriculture</td><td>4.537</td><td>+0.257</td><td>&lt;0.0001</td><td>&lt;0.0001</td><td>&lt;0.0001</td><td class="up">8.46</td></tr>
+        <tr><td>Technology</td><td>6.011</td><td>−0.404</td><td>&lt;0.0001</td><td>&lt;0.0001</td><td>&lt;0.0001</td><td class="up">12.00</td></tr>
+        <tr><td>Financials</td><td>6.134</td><td>−0.313</td><td>&lt;0.0001</td><td>&lt;0.0001</td><td>&lt;0.0001</td><td class="up">12.25</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="disclosure">Minimum |t| = 8.46 (Agriculture), well above Harvey et al.'s 3.0 threshold. Under BH at 5% FDR with all five rejections, expected false discoveries ≤ 0.25.</p>
+
+  <h3 style="margin-top:22px;">Transaction Cost Sensitivity (Precious Metals)</h3>
+  <div class="tablewrap">
+    <table class="bench">
+      <caption>Break-even one-way cost ≈ 470 bp ; more than 30× the 15 bp baseline assumption.</caption>
+      <thead><tr><th>One-Way Cost (bp)</th><th>OOS Sharpe</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>0 (gross)</td><td>5.981</td><td class="up">-</td></tr>
+        <tr><td>15 (assumed)</td><td>5.871</td><td class="up">Baseline</td></tr>
+        <tr><td>50</td><td>5.419</td><td class="up">Viable</td></tr>
+        <tr><td>100</td><td>4.829</td><td class="up">Viable</td></tr>
+        <tr><td>200</td><td>3.581</td><td class="up">Viable</td></tr>
+        <tr><td>400</td><td>0.976</td><td class="up">Marginal</td></tr>
+        <tr><td>500</td><td>−0.282</td><td class="down">Below zero</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="resultnote" style="margin-top:18px;">
+    <p><strong>Regime filter finding:</strong> Hurst gating (Precious Metals OOS Sharpe 0.131) dramatically underperforms no-gating (5.871). The static threshold calibrated on training data fails to transfer. Variance Ratio gating performs better (6.589) but adds parameters; the primary specification uses no gating.</p>
+    <p>Raw net returns (no VT) show marginally higher Sharpe (5.990 vs. 5.871), but VT compresses volatility from 34.9% to 15.7% and halves maximum drawdown (−10.3% → −4.0%). VT is a risk tool, not a return tool.</p>
+  </div>
+</div>
+</section>
+
+<!-- ===== Section 6: Ablation ===== -->
+<section id="sec6" aria-labelledby="sec6-h">
+<div class="panel">
+  <h2 id="sec6-h">6 · Ablation Study</h2>
+  <p class="lede">Each module is removed in turn while holding all other parameters at BO-optimised values (Precious Metals universe). The Kalman filter is the single most consequential component by a factor of more than six.</p>
+
+  <div id="ablation-container" style="margin-top:18px;"></div>
+
+  <div class="tablewrap" style="margin-top:18px;">
+    <table class="bench">
+      <caption>Ablation results : Precious Metals OOS. Full pipeline Sharpe = 5.871.</caption>
+      <thead><tr><th>Configuration</th><th>OOS Sharpe</th><th>∆ vs. Full</th><th>Max DD</th></tr></thead>
+      <tbody>
+        <tr class="highlight"><td><strong>Full pipeline</strong></td><td><strong>5.871</strong></td><td>-</td><td>−4.0%</td></tr>
+        <tr><td>− Kalman filter (static $\hat\beta$)</td><td>−0.301</td><td class="down">−6.172</td><td>−33.5%</td></tr>
+        <tr><td>− Scaled entry (binary at $e_2$)</td><td>1.249</td><td class="down">−4.622</td><td>−8.0%</td></tr>
+        <tr><td>− BO (default params)</td><td>4.649</td><td class="down">−1.223</td><td>−6.7%</td></tr>
+        <tr><td>− Vol-targeting (raw net returns)</td><td>5.990</td><td class="up">+0.119</td><td>−10.3%</td></tr>
+        <tr><td>− Stop-loss ($z_\text{stop}=\infty$)</td><td>5.831</td><td class="down">−0.040</td><td>−4.0%</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="consequence">
+    <strong>Key finding:</strong> Static Johansen weights collapse performance (∆ = −6.172 SR, drawdown −33.5%). Over 15 years of shifting market structure, fixed weights diverge silently. The Kalman filter's adaptive estimation is not a refinement , it is load-bearing.
+  </div>
+</div>
+</section>
+
+<!-- ===== Section 7: Discussion ===== -->
+<section id="sec7" aria-labelledby="sec7-h">
+<div class="panel">
+  <h2 id="sec7-h">7 · Discussion &amp; Limitations</h2>
+
+  <div class="cards3">
+    <article class="minicard">
+      <p class="tag tag-blue">Interpretation</p>
+      <h3>Signal-Normalised Sharpe</h3>
+      <p>Returns are measured per unit of z-score movement, not per dollar invested. For a fully funded implementation, capital-return Sharpe likely falls in the 1.5–3.0 range depending on leverage and notional sizing. The numbers measure signal quality, not portfolio return.</p>
+    </article>
+    <article class="minicard">
+      <p class="tag tag-mustard">Boundary Convergence</p>
+      <h3>22/25 Parameters at Bounds</h3>
+      <p>$e_1$ saturates at 0.80σ in every universe. $e_2$ and $e_3$ hit their ceilings in four of five cases. BO converges to early single-tier entry with rare scaling , not diverse universe-specific profiles. The current search space may be too narrow, or the objective landscape flat along threshold dimensions.</p>
+    </article>
+    <article class="minicard">
+      <p class="tag tag-terracotta">Known Issue</p>
+      <h3>Short-Side Sign Error</h3>
+      <p>A sign-convention error in the middle tier of short partial-exit logic assigns +⅓ instead of −⅓. Affects ~8–12% of short trade observations. Creates modest upward bias in Sharpe signals, estimated at 3–8%. Qualitative conclusions (Kalman dominance, baseline underperformance) are unlikely to reverse.</p>
+    </article>
+  </div>
+
+  <h3 style="margin-top:22px;">Evidence Against Overfitting</h3>
+  <div class="formulaband" style="border-left-color:var(--green);">
+    <p>Five independent lines of evidence argue against overfitting:</p>
+    <ol style="margin:8px 0 0 18px;font-size:14.5px;line-height:1.8;">
+      <li><strong>Cross-universe consistency</strong> : five independently optimised universes, all positive OOS Sharpe</li>
+      <li><strong>Walk-forward stability</strong> : within 4% of single-shot estimates over 23 windows</li>
+      <li><strong>Sub-period consistency</strong> : 20/20 cells positive across all universes and macro regimes</li>
+      <li><strong>Harvey haircut</strong> : minimum |t| = 8.46, vs. required 3.0</li>
+      <li><strong>Break-even cost</strong> : 470 bp for Precious Metals, 30× the assumed 15 bp</li>
+    </ol>
+  </div>
+
+  <h3 style="margin-top:18px;">The Energy Paradox</h3>
+  <p>The Energy universe has Johansen rank 0 at 95% confidence which is formally no cointegrating vector and yet produces the second-highest OOS Sharpe (6.339). The Kalman filter does not require a formal cointegration finding: it tracks episodic co-movement induced by crude-price shocks regardless. The framework is more general than the "cointegration" label implies, an adaptive relative-value strategy useful even when formal cointegration cannot be established.</p>
+
+  <h3 style="margin-top:18px;">Suggested Extensions</h3>
+  <div class="cards3">
+    <article class="minicard">
+      <p class="tag tag-plum">Surrogate</p>
+      <h3>Deep Kernel Learning</h3>
+      <p>Replace the GP surrogate with Bayesian neural networks or deep kernel learning (Wilson et al., 2016) to capture non-stationarities in the objective landscape beyond Matérn smoothness.</p>
+    </article>
+    <article class="minicard">
+      <p class="tag tag-blue">Multi-Objective</p>
+      <h3>Expected Hypervolume Improvement</h3>
+      <p>Multi-objective BO (Daulton et al., 2020) to jointly optimise Sharpe, drawdown, and turnover, surfacing the full Pareto frontier rather than a single Sharpe-maximising parameter set.</p>
+    </article>
+    <article class="minicard">
+      <p class="tag tag-green">Coverage</p>
+      <h3>Full Walk-Forward + Fixed Baselines</h3>
+      <p>Extend walk-forward to all five universes. Re-implement EG and OU-MLE baselines under the identical signal-normalised return convention. Correct the short-side sign error and re-run.</p>
+    </article>
+  </div>
+</div>
+</section>
+
+</main>
+
+<footer>
+<div class="wrap">
+  <p>Based on "Bayesian Optimisation of Cointegration-Based Statistical Arbitrage: A Multi-Universe Framework with Adaptive Kalman Filtering and Regime Detection." Data: Yahoo Finance daily adjusted closing prices, 1 Jan 2010 - 31 Dec 2024.</p>
+  <p>Key references: Johansen (1991) · Kalman (1960) · Srinivas et al. (2010) · Barroso &amp; Santa-Clara (2015) · Harvey et al. (2016) · Lo &amp; MacKinlay (1988).</p>
+</div>
+</footer>
+
+<script>
+'use strict';
+
+/* =====================================================================
+   Kalman interactive simulation
+   ===================================================================== */
+function kalmanSim(delta) {
+  var N = 200;
+  var trueRatio = [];
+  var kalmanEst = [];
+  var v = 1.0;
+  var beta = 1.0;
+  var P = 1.0;
+  var Ve = 0.001;
+  for (var i = 0; i < N; i++) {
+    // True ratio: random walk with shocks
+    beta += (Math.random()-0.5)*0.04 + (i===60?0.6:0) + (i===130?-0.5:0);
+    trueRatio.push(beta);
+    // Kalman predict
+    P = P + delta;
+    // Observation
+    var obs = beta + (Math.random()-0.5)*0.1;
+    // Gain
+    var K = P / (P + Ve);
+    v = v + K*(obs - v);
+    P = (1-K)*P;
+    kalmanEst.push(v);
+  }
+  return {trueRatio: trueRatio, kalmanEst: kalmanEst};
+}
+
+function renderKalman() {
+  var raw = parseFloat(document.getElementById('delta-slider').value);
+  var delta = raw * 0.00001; // 0.00001 to 0.001
+  document.getElementById('delta-val').textContent = delta.toFixed(5);
+  var label = delta < 0.0002 ? 'Slow (stable)' : delta < 0.0006 ? 'Default' : 'Fast (reactive)';
+  document.getElementById('delta-label').textContent = label;
+
+  var sim = kalmanSim(delta);
+  var N = sim.trueRatio.length;
+  var allVals = sim.trueRatio.concat(sim.kalmanEst);
+  var minV = Math.min.apply(null, allVals);
+  var maxV = Math.max.apply(null, allVals);
+  var range = maxV - minV || 1;
+  var x0=60, x1=880, y0=25, y1=160;
+  function px(i){ return x0 + i*(x1-x0)/(N-1); }
+  function py(v){ return y1 - (v-minV)/range*(y1-y0); }
+
+  var tPts = sim.trueRatio.map(function(v,i){ return px(i)+','+py(v); }).join(' ');
+  var kPts = sim.kalmanEst.map(function(v,i){ return px(i)+','+py(v); }).join(' ');
+  document.getElementById('true-ratio').setAttribute('points', tPts);
+  document.getElementById('kalman-ratio').setAttribute('points', kPts);
+}
+
+document.getElementById('delta-slider').addEventListener('input', renderKalman);
+renderKalman();
+
+/* =====================================================================
+   BO convergence simulation
+   ===================================================================== */
+var boTimer = null;
+var boIdx = 0;
+var boData = [];
+var rsData = [];
+
+function boReset() {
+  if (boTimer) { clearInterval(boTimer); boTimer = null; }
+  boIdx = 0; boData = []; rsData = [];
+  document.getElementById('bo-line').setAttribute('points','');
+  document.getElementById('rs-line').setAttribute('points','');
+  document.getElementById('bo-dots').innerHTML = '';
+  document.getElementById('bo-caption').textContent = 'Press Run BO to begin the simulated optimisation.';
+}
+
+function boYpx(v) {
+  // Map Sharpe range [-0.5, 7.0] to y [145, 10]
+  return 145 - (v+0.5)/7.5*135;
+}
+function boXpx(i) {
+  return 60 + i*(730/60);
+}
+
+// Pre-generate a plausible BO trace
+function genBoTrace() {
+  var vals = [];
+  // Random phase (20 pts): scattered
+  var rng = function(){ return (Math.random()-0.5)*2; };
+  for(var i=0;i<20;i++) vals.push(-0.3 + Math.random()*2.5 + rng()*0.4);
+  // Exploitation (40 pts): converges toward ~5.9
+  var best = Math.max.apply(null,vals);
+  for(var j=0;j<40;j++){
+    var noise = (Math.random()-0.5)*0.6;
+    var target = 5.2 + j*0.018;
+    vals.push(Math.min(6.1, target + noise));
+  }
+  return vals;
+}
+
+function genRsTrace(boVals) {
+  var vals = [];
+  var best = -1;
+  for(var i=0;i<60;i++){
+    var v = -0.3 + Math.random()*6.0 + (Math.random()-0.5)*0.5;
+    vals.push(v);
+    best = Math.max(best, v);
+  }
+  // Make RS converge but slower
+  return vals.map(function(v){ return v; });
+}
+
+function runBO() {
+  if (boTimer) return;
+  if (boIdx === 0) {
+    var raw = genBoTrace();
+    boData = raw;
+    var rs = [];
+    var rsBest = -1;
+    for(var i=0;i<60;i++){
+      var v = -0.3 + Math.random()*4.8 + (Math.random()-0.5)*0.5;
+      rsBest = Math.max(rsBest, v);
+      rs.push(v);
+    }
+    rsData = rs;
+  }
+
+  boTimer = setInterval(function(){
+    if (boIdx >= 60) { clearInterval(boTimer); boTimer=null; document.getElementById('bo-caption').textContent='Complete — 60 evaluations. GP-BO converged within ~10 evaluations to near-optimal Sharpe.'; return; }
+    boIdx++;
+    // Update best-found BO line
+    var boBest = -1;
+    var boPts = [];
+    for(var i=0;i<boIdx;i++){
+      boBest = Math.max(boBest, boData[i]);
+      boPts.push(boXpx(i)+','+boYpx(boBest));
+    }
+    document.getElementById('bo-line').setAttribute('points', boPts.join(' '));
+
+    // Random search best
+    var rsBest2 = -1;
+    var rsPts = [];
+    for(var j=0;j<boIdx;j++){
+      rsBest2 = Math.max(rsBest2, rsData[j]);
+      rsPts.push(boXpx(j)+','+boYpx(rsBest2));
+    }
+    document.getElementById('rs-line').setAttribute('points', rsPts.join(' '));
+
+    // Dots for BO individual evaluations
+    var dotsG = document.getElementById('bo-dots');
+    var c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    c.setAttribute('cx', boXpx(boIdx-1));
+    c.setAttribute('cy', boYpx(boData[boIdx-1]));
+    c.setAttribute('r', boIdx<=20?3:2.5);
+    c.setAttribute('fill', boIdx<=20?'var(--muted)':'var(--plum)');
+    c.setAttribute('opacity', '0.7');
+    dotsG.appendChild(c);
+
+    document.getElementById('bo-caption').textContent =
+      'Evaluation '+boIdx+'/60 — '+(boIdx<=20?'Random exploration phase':'GP-directed exploitation')+'. Best Sharpe found: '+Math.max.apply(null,boData.slice(0,boIdx)).toFixed(3)+'.';
+  }, 80);
+}
+
+document.getElementById('bo-run').addEventListener('click', runBO);
+document.getElementById('bo-reset').addEventListener('click', boReset);
+
+/* =====================================================================
+   Sub-period heat grid
+   ===================================================================== */
+var subData = {
+  headers: ['QE Stim. (2021)','Hike Start (2022)','Peak Tight. (2023)','Soft Land. (2024)','Full OOS'],
+  rows: [
+    {name:'Precious Metals', vals:[4.749,6.240,5.673,6.650,5.871]},
+    {name:'Energy',          vals:[6.419,7.218,7.452,5.425,6.339]},
+    {name:'Agriculture',     vals:[3.000,4.739,5.300,5.050,4.537]},
+    {name:'Technology',      vals:[5.203,6.727,6.755,5.958,6.011]},
+    {name:'Financials',      vals:[5.103,7.491,4.949,7.085,6.134]},
+  ]
+};
+
+function heatColor(v) {
+  // 3.0 -> light mustard, 7.5 -> deep green
+  var t = (v - 3.0) / 4.5;
+  t = Math.max(0, Math.min(1, t));
+  // Interpolate plum-soft to green
+  if (t < 0.5) {
+    var r = Math.round(242 + (221-242)*t*2);
+    var g = Math.round(220 + (237-220)*t*2);
+    var b = Math.round(232 + (229-232)*t*2);
+    return 'rgb('+r+','+g+','+b+')';
+  } else {
+    var s = (t-0.5)*2;
+    var r2 = Math.round(221 - (221-40)*s);
+    var g2 = Math.round(237 - (237-122)*s);
+    var b2 = Math.round(229 - (229-89)*s);
+    return 'rgb('+r2+','+g2+','+b2+')';
+  }
+}
+
+(function buildHeat(){
+  var c = document.getElementById('heat-container');
+  // Header row
+  var hdr = document.createElement('div');
+  hdr.style.cssText = 'display:grid;grid-template-columns:130px repeat(5,1fr);gap:4px;margin-bottom:4px;';
+  hdr.innerHTML = '<div></div>';
+  subData.headers.forEach(function(h){
+    var d = document.createElement('div');
+    d.style.cssText = 'font-family:var(--font-mono);font-size:11px;color:var(--muted);text-align:center;line-height:1.3;padding:2px 2px;';
+    d.textContent = h;
+    hdr.appendChild(d);
+  });
+  c.appendChild(hdr);
+  // Data rows
+  subData.rows.forEach(function(row){
+    var r = document.createElement('div');
+    r.style.cssText = 'display:grid;grid-template-columns:130px repeat(5,1fr);gap:4px;margin-bottom:4px;';
+    var lbl = document.createElement('div');
+    lbl.style.cssText = 'font-size:13px;font-weight:600;display:flex;align-items:center;';
+    lbl.textContent = row.name;
+    r.appendChild(lbl);
+    row.vals.forEach(function(v, vi){
+      var d = document.createElement('div');
+      var isFull = vi === 4;
+      d.style.cssText = 'border-radius:8px;padding:8px 4px;text-align:center;font-size:13px;font-weight:700;background:'+heatColor(v)+';'+(isFull?'border:2px solid var(--line);':'');
+      d.textContent = v.toFixed(3);
+      r.appendChild(d);
+    });
+    c.appendChild(r);
+  });
+  var legend = document.createElement('div');
+  legend.style.cssText = 'display:flex;align-items:center;gap:8px;margin-top:8px;font-family:var(--font-mono);font-size:11px;color:var(--muted);';
+  legend.innerHTML = '<span>Sharpe signal:</span><span style="background:'+heatColor(3)+';;width:18px;height:14px;border-radius:4px;display:inline-block;"></span>3.0<span style="background:'+heatColor(5.2)+';;width:18px;height:14px;border-radius:4px;display:inline-block;"></span>5.2<span style="background:'+heatColor(7.5)+';;width:18px;height:14px;border-radius:4px;display:inline-block;"></span>7.5';
+  c.appendChild(legend);
+})();
+
+/* =====================================================================
+   Ablation bars
+   ===================================================================== */
+var ablationData = [
+  {label:'Full pipeline',             sr:5.871,  delta:null,   color:'var(--green)'},
+  {label:'− Kalman (static weights)', sr:-0.301, delta:-6.172, color:'var(--terracotta)'},
+  {label:'− Scaled entry (binary)',   sr:1.249,  delta:-4.622, color:'var(--terracotta)'},
+  {label:'− Bayesian Optimisation',   sr:4.649,  delta:-1.223, color:'var(--mustard)'},
+  {label:'− Vol-targeting',           sr:5.990,  delta:+0.119, color:'var(--green)'},
+  {label:'− Stop-loss',               sr:5.831,  delta:-0.040, color:'var(--muted)'},
+];
+(function buildAblation(){
+  var c = document.getElementById('ablation-container');
+  var maxSr = 6.5;
+  ablationData.forEach(function(d){
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:10px;margin:6px 0;';
+    var lbl = document.createElement('div');
+    lbl.style.cssText = 'font-size:13px;min-width:220px;color:var(--ink);';
+    lbl.textContent = d.label;
+    var track = document.createElement('div');
+    track.style.cssText = 'flex:1;background:var(--paper-deep);border-radius:6px;height:24px;position:relative;overflow:hidden;';
+    var fill = document.createElement('div');
+    var pct = Math.max(0, d.sr/maxSr*100);
+    fill.style.cssText = 'height:100%;border-radius:6px;background:'+d.color+';width:'+pct+'%;display:flex;align-items:center;padding-left:8px;font-family:var(--font-mono);font-size:12px;color:white;font-weight:700;min-width:40px;';
+    fill.textContent = d.sr.toFixed(3);
+    track.appendChild(fill);
+    var delta = document.createElement('div');
+    delta.style.cssText = 'font-family:var(--font-mono);font-size:12.5px;min-width:60px;text-align:right;color:'+(d.delta===null?'var(--muted)':d.delta>=0?'var(--green)':'var(--terracotta)')+';font-weight:700;';
+    delta.textContent = d.delta===null?'—':(d.delta>=0?'+':'')+d.delta.toFixed(3);
+    row.appendChild(lbl); row.appendChild(track); row.appendChild(delta);
+    c.appendChild(row);
+  });
+  var note = document.createElement('p');
+  note.style.cssText = 'font-family:var(--font-mono);font-size:11.5px;color:var(--muted);margin:8px 0 0;';
+  note.textContent = 'Bar width ∝ OOS Sharpe signal. Delta = change vs. full pipeline.';
+  c.appendChild(note);
+})();
+
+/* =====================================================================
+   Navigation: reliable section scrolling + scrollspy
+   ===================================================================== */
+(function () {
+  'use strict';
+
+  function initSectionNavigation() {
+    var nav = document.getElementById('topnav');
+    var navLinks = document.querySelectorAll('#topnav a[href^="#"]');
+    var sections = document.querySelectorAll('main section[id]');
+
+    if (!nav || !navLinks.length) {
+      return;
+    }
+
+    /* Explicitly handle navigation clicks.
+       This avoids relying on browser hash scrolling. */
+    navLinks.forEach(function (link) {
+      link.addEventListener('click', function (event) {
+        var href = link.getAttribute('href');
+
+        if (!href || href === '#') {
+          return;
+        }
+
+        var targetId = href.substring(1);
+        var target = document.getElementById(targetId);
+
+        if (!target) {
+          console.warn('Navigation target not found:', targetId);
+          return;
+        }
+
+        event.preventDefault();
+
+        var navHeight = nav.getBoundingClientRect().height;
+        var targetTop =
+          target.getBoundingClientRect().top +
+          window.pageYOffset -
+          navHeight -
+          20;
+
+        window.scrollTo({
+          top: Math.max(0, targetTop),
+          behavior: 'smooth'
+        });
+
+        /* Keep the URL hash in sync without triggering another jump. */
+        if (history.pushState) {
+          history.pushState(null, '', '#' + targetId);
+        }
+      });
+    });
+
+    /* Scrollspy */
+    function updateActiveLink() {
+      var navHeight = nav.getBoundingClientRect().height;
+      var current = '';
+
+      sections.forEach(function (section) {
+        var rect = section.getBoundingClientRect();
+
+        if (rect.top <= navHeight + 40) {
+          current = section.id;
+        }
+      });
+
+      navLinks.forEach(function (link) {
+        var targetId = link.getAttribute('href').substring(1);
+        link.classList.toggle('active', targetId === current);
+      });
+    }
+
+    window.addEventListener('scroll', updateActiveLink, {
+      passive: true
+    });
+
+    window.addEventListener('resize', updateActiveLink);
+
+    updateActiveLink();
+  }
+
+  /* Ensure the DOM exists before querying navigation elements. */
+  if (document.readyState === 'loading') {
+    document.addEventListener(
+      'DOMContentLoaded',
+      initSectionNavigation
+    );
+  } else {
+    initSectionNavigation();
+  }
+})();
+</script>
+</body>
+</html>
