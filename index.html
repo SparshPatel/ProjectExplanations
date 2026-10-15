@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project Explanations - Sparsh Patel</title>
+    <style>
+        :root {
+            --primary: #0366d6;
+            --bg: #f8f9fa;
+            --card-bg: #ffffff;
+            --text: #24292e;
+            --border: #e1e4e8;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            line-height: 1.6;
+        }
+        header {
+            margin-bottom: 40px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 20px;
+        }
+        h1 { margin: 0 0 10px 0; font-size: 2rem; color: #111; }
+        p.subtitle { color: #586069; font-size: 1.1rem; margin: 0; }
+        
+        .section-title {
+            font-size: 1.25rem;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid var(--primary);
+            display: inline-block;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 16px;
+            margin-bottom: 30px;
+        }
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 20px;
+            transition: transform 0.2s, box-shadow 0.2s;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+        .card h3 { margin: 0 0 10px 0; font-size: 1.05rem; }
+        .card a {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .card a:hover { text-decoration: underline; }
+        .badge {
+            font-size: 0.75rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: #e1effe;
+            color: #1e429f;
+            display: inline-block;
+            margin-bottom: 10px;
+            width: max-content;
+        }
+        .badge.doc { background: #fef3c7; color: #92400e; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Project Explanations</h1>
+        <p class="subtitle">Explanations and executive summaries for working papers at SSRN or otherwise by Sparsh Patel.</p>
+    </header>
+
+    <main>
+        <h2 class="section-title">Interactive Explanations (Web Pages)</h2>
+        <div class="grid">
+            <div class="card">
+                <div>
+                    <span class="badge">HTML Viewer</span>
+                    <h3>DG-SAC Detailed Explanation</h3>
+                </div>
+                <a href="DG-SAC detailed explanation.html">View Page &rarr;</a>
+            </div>
+            
+            <div class="card">
+                <div>
+                    <span class="badge">HTML Viewer</span>
+                    <h3>BO Stat Arb Explanation</h3>
+                </div>
+                <a href="BO stat Arb explanation.html">View Page &rarr;</a>
+            </div>
+
+            <div class="card">
+                <div>
+                    <span class="badge">HTML Viewer</span>
+                    <h3>VDOV Explanation</h3>
+                </div>
+                <a href="VDOV Explanation.html">View Page &rarr;</a>
+            </div>
+        </div>
+
+        <h2 class="section-title">Executive Summaries & Documents</h2>
+        <div class="grid">
+            <div class="card">
+                <div>
+                    <span class="badge doc">Word Document</span>
+                    <h3>Executive Summary ACSRA</h3>
+                </div>
+                <a href="Executive_Summary_ACSRA.docx">Download / View (.docx) &rarr;</a>
+            </div>
+
+            <div class="card">
+                <div>
+                    <span class="badge doc">Word Document</span>
+                    <h3>IGM Executive Summary</h3>
+                </div>
+                <a href="IGM_Executive_Summary.docx">Download / View (.docx) &rarr;</a>
+            </div>
+        </div>
+    </main>
+
+</body>
+</html>
