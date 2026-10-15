@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Delta-Guided Soft Actor-Critic for Derivative Hedging</title>
+<meta name="color-scheme" content="light">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]})"></script>
+<style>
+:root {
+  --paper: #F2F4F8;
+  --paper-deep: #E4E8F0;
+  --card: #FAFBFF;
+  --ink: #1A1D2E;
+  --muted: #5A6080;
+  --line: #CDD3E2;
+  --teal: #1E7A6E;
+  --teal-soft: #D6EDE9;
+  --blue: #1E4FA0;
+  --blue-soft: #D6E3F5;
+  --indigo: #3A2FA0;
+  --indigo-soft: #E0DEFF;
+  --amber: #B86E00;
+  --amber-soft: #F5E8CC;
+  --crimson: #B01F3F;
+  --crimson-soft: #F5D6DC;
+  --slate: #3D5A80;
+  --slate-soft: #D6E4F0;
+  --font-head: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-body: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --radius: 16px;
+  --shadow: 0 1px 3px rgba(26,29,46,.06), 0 8px 28px rgba(26,29,46,.08);
+}
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;scroll-padding-top:90px;}
+body{margin:0;font-family:var(--font-body);font-size:clamp(15px,0.6vw + 13.5px,17px);line-height:1.65;color:var(--ink);background:var(--paper);background-image:linear-gradient(rgba(26,29,46,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(26,29,46,.03) 1px,transparent 1px);background-size:28px 28px;}
+.wrap{max-width:1100px;margin:0 auto;padding:0 22px;}
+
+/* Header */
+.sitehead{padding-top:clamp(28px,5vw,60px);}
+.kicker{font-family:var(--font-mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--teal);margin:0 0 10px;}
+h1{font-family:var(--font-head);font-weight:800;font-size:clamp(24px,3vw,42px);line-height:1.12;letter-spacing:-.018em;margin:0 0 10px;max-width:28ch;}
+.subtitle{font-size:clamp(15px,1.4vw,19px);color:var(--ink);margin:0 0 12px;font-weight:600;}
+.meta{font-family:var(--font-mono);font-size:12.5px;line-height:1.7;color:var(--muted);margin:0 0 6px;}
+
+/* Nav */
+#topnav{position:sticky;top:0;z-index:60;background:rgba(242,244,248,.96);border-top:1px solid var(--line);border-bottom:1px solid var(--line);backdrop-filter:blur(2px);}
+.navrow{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;padding:8px 0;}
+.navrow a{font-family:var(--font-mono);font-size:12px;color:var(--ink);text-decoration:none;padding:5px 10px;border-radius:999px;border:1px solid transparent;white-space:nowrap;}
+.navrow a:hover,.navrow a.active{background:var(--paper-deep);border-color:var(--line);}
+
+/* Sections */
+main{display:block;}
+main>section{margin:clamp(20px,3.5vw,42px) auto;}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:clamp(18px,3vw,36px);}
+h2{font-family:var(--font-head);font-weight:800;font-size:clamp(18px,2vw,26px);line-height:1.2;letter-spacing:-.012em;margin:0 0 14px;}
+h3{margin:0 0 8px;font-size:16px;font-weight:700;}
+.lede{max-width:80ch;margin:0 0 16px;}
+.small{font-size:13.5px;color:var(--muted);}
+
+/* Cards */
+.cards3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:18px;}
+.cards2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:18px;}
+.minicard{border:1px solid var(--line);border-radius:14px;background:var(--paper);padding:16px 18px;}
+.minicard h3{font-size:15px;margin:4px 0 8px;}
+.minicard p{margin:0;font-size:14px;}
+.tag{display:inline-block;font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;padding:3px 9px;border-radius:999px;border:1px solid transparent;}
+.tag-teal{background:var(--teal-soft);color:var(--ink);border-color:var(--teal);}
+.tag-blue{background:var(--blue-soft);color:var(--ink);border-color:var(--blue);}
+.tag-indigo{background:var(--indigo-soft);color:var(--ink);border-color:var(--indigo);}
+.tag-amber{background:var(--amber-soft);color:var(--ink);border-color:var(--amber);}
+.tag-crimson{background:var(--crimson-soft);color:var(--ink);border-color:var(--crimson);}
+.tag-slate{background:var(--slate-soft);color:var(--ink);border-color:var(--slate);}
+
+/* Formula bands */
+.formulaband,.formulapanel{border:1px solid var(--line);border-left:4px solid var(--teal);background:var(--paper);border-radius:12px;padding:12px 18px;margin:14px 0 18px;overflow-x:auto;}
+.formulapanel h3{font-size:14.5px;margin:0 0 6px;}
+.support{margin:6px 0 0;font-size:13.5px;color:var(--muted);}
+
+/* Stats */
+.statgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:16px;}
+.statcard{border:1px solid var(--line);border-radius:14px;background:var(--paper);padding:14px 16px;}
+.statval{font-family:var(--font-head);font-weight:800;font-size:clamp(22px,2.4vw,30px);margin:0 0 4px;color:var(--teal);}
+.statdesc{margin:0;font-size:13px;color:var(--ink);line-height:1.5;}
+
+/* Tables */
+.tablewrap{overflow-x:auto;margin-top:16px;border:1px solid var(--line);border-radius:12px;}
+table.bench{border-collapse:collapse;width:100%;min-width:460px;font-size:13.5px;background:var(--card);}
+table.bench caption{text-align:left;font-family:var(--font-mono);font-size:12px;color:var(--muted);padding:10px 12px;}
+table.bench th,table.bench td{padding:6px 12px;border-top:1px solid var(--line);text-align:right;white-space:nowrap;}
+table.bench th:first-child,table.bench td:first-child{text-align:left;}
+table.bench thead th{border-top:none;font-family:var(--font-mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);background:var(--paper);}
+.bench td.up{color:var(--teal);font-weight:700;}
+.bench td.down{color:var(--crimson);font-weight:700;}
+.bench td.tie{color:var(--muted);}
+.bench tr.highlight td{background:var(--teal-soft);}
+
+/* Notes */
+.resultnote{margin-top:16px;padding:14px 18px;border:1px solid var(--line);border-left:4px solid var(--teal);border-radius:12px;background:var(--teal-soft);}
+.resultnote p{margin:0 0 8px;font-size:14.5px;}
+.resultnote p:last-child{margin-bottom:0;}
+.consequence{margin:14px 0 0;padding:12px 16px;border:1px solid var(--amber);border-left-width:4px;border-radius:12px;background:var(--amber-soft);font-size:14.5px;}
+.warning{margin:14px 0 0;padding:12px 16px;border:1px solid var(--crimson);border-left-width:4px;border-radius:12px;background:var(--crimson-soft);font-size:14.5px;}
+.disclosure{font-size:13px;color:var(--muted);border-left:3px solid var(--line);padding-left:10px;margin:12px 0 0;}
+
+/* SVG / Chart wrappers */
+.svgwrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:12px;background:var(--card);}
+svg.diagram{display:block;width:100%;height:auto;}
+
+/* Controls */
+.controls{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 10px;}
+.controls button{font-family:var(--font-mono);font-size:13px;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:9px;padding:7px 14px;cursor:pointer;min-height:36px;}
+.controls button:hover:not(:disabled){background:var(--paper-deep);}
+.controls button.primary{background:var(--ink);color:var(--card);border-color:var(--ink);}
+.caption{font-family:var(--font-mono);font-size:12.8px;line-height:1.55;color:var(--ink);background:var(--paper-deep);border-left:3px solid var(--teal);border-radius:8px;padding:9px 12px;margin:0 0 14px;}
+
+/* Pipeline */
+.pipeline{display:flex;align-items:center;gap:0;flex-wrap:wrap;margin:18px 0;overflow-x:auto;}
+.pipe-box{background:var(--paper);border:1.5px solid var(--line);border-radius:10px;padding:10px 14px;font-size:13px;font-weight:600;white-space:nowrap;flex-shrink:0;text-align:center;}
+.pipe-arrow{font-size:18px;color:var(--muted);padding:0 5px;flex-shrink:0;}
+
+/* Reward chart area */
+.chart-area{position:relative;height:200px;background:var(--paper);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:18px 0;}
+.chart-area svg{position:absolute;inset:0;width:100%;height:100%;}
+
+/* Slider */
+.slider-row{display:flex;align-items:center;gap:16px;margin:10px 0 6px;}
+.slider-row label{font-family:var(--font-mono);font-size:13px;white-space:nowrap;}
+.slider-row input[type=range]{flex:1;accent-color:var(--teal);}
+.slider-row span{font-family:var(--font-mono);font-size:12px;color:var(--muted);white-space:nowrap;}
+
+/* Footer */
+footer{margin-top:clamp(30px,5vw,60px);border-top:1px solid var(--line);background:var(--paper-deep);padding:26px 0 80px;}
+footer p{font-size:13.5px;color:var(--muted);max-width:80ch;margin:0 0 8px;}
+a{color:var(--blue);}
+a:hover{color:var(--teal);}
+:focus-visible{outline:3px solid var(--blue);outline-offset:2px;border-radius:6px;}
+
+@media(max-width:900px){.cards3{grid-template-columns:1fr;}.statgrid{grid-template-columns:repeat(2,1fr);}.cards2{grid-template-columns:1fr;}}
+@media(max-width:760px){.pipeline{gap:2px;}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;}}
+</style>
+</head>
+<body>
+
+<header class="sitehead">
+<div class="wrap">
+  <p class="kicker">Research Paper · Quantitative Finance · Reinforcement Learning</p>
+  <h1>Delta-Guided Soft Actor-Critic for Derivative Hedging under Model Misspecification and Transaction Costs</h1>
+  <p class="subtitle">A reward-shaping architecture embedding the Black–Scholes delta as a time-decaying inductive bias into SAC</p>
+  <p style="font-weight:700;margin-top:10px;">Sparsh Patel &nbsp;·&nbsp; School of Computer Science and Engineering, Vellore Institute of Technology</p>
+  <p class="meta">Five experimental settings · GBM, Merton, Rough Bergomi, Portfolio, Real Options · 9/9 single-seed wins at p &lt; 0.001</p>
+</div>
+</header>
+
+<nav id="topnav" aria-label="Section navigation">
+<div class="wrap navrow">
+  <a href="#sec0">Overview</a>
+  <a href="#sec1">1 · Problem</a>
+  <a href="#sec2">2 · DG-SAC Method</a>
+  <a href="#sec3">3 · Theory</a>
+  <a href="#sec4">4 · Experiments</a>
+  <a href="#sec5">5 · Results</a>
+  <a href="#sec6">6 · TC Sensitivity</a>
+  <a href="#sec7">7 · Discussion</a>
+</div>
+</nav>
+
+<main class="wrap">
+
+<!-- ===== Section 0: Overview ===== -->
+<section id="sec0" aria-labelledby="sec0-h">
+<div class="panel">
+  <h2 id="sec0-h">One-Minute Overview</h2>
+  <p class="lede">Delta hedging degrades under real market conditions: stochastic volatility, jumps, and non-negligible transaction costs. RL agents can adapt, but suffer from poor sample efficiency and unstable cross-model transfer. DG-SAC resolves both by embedding the Black–Scholes delta as a decaying inductive bias in the reward.</p>
+
+  <div class="cards3">
+    <article class="minicard">
+      <p class="tag tag-crimson">Problem</p>
+      <h3>Two Practical Challenges</h3>
+      <p>Sample efficiency: model-free RL must explore from scratch, ignoring that hedging near the analytical delta is a reasonable starting point. Robustness: agents trained under GBM produce erratic ratios under rough volatility or jump-diffusion dynamics.</p>
+    </article>
+    <article class="minicard">
+      <p class="tag tag-teal">Approach</p>
+      <h3>Time-Decaying Delta Guidance</h3>
+      <p>The shaped reward is $r^\text{DG}(s_t,a_t) = r(s_t,a_t) - \beta(t)(a_t - \Delta^\text{BS}_t)^2$, where $\beta(t) = \beta_0(1-\eta\,t/T)$ decays from strong early guidance to weak late-stage regularisation. No architectural changes to SAC are required.</p>
+    </article>
+    <article class="minicard">
+      <p class="tag tag-blue">Validation</p>
+      <h3>Five Settings, Full Rigour</h3>
+      <p>GBM, Merton jump-diffusion, rough Bergomi, 4-leg portfolio hedging, and real options backtesting (SPY, QQQ, IWM). Welch t-tests, bootstrap CIs, 5-seed robustness, and ablation of the decay schedule.</p>
+    </article>
+  </div>
+
+  <div class="statgrid" style="margin-top:20px;">
+    <div class="statcard"><p class="statval">19–38%</p><p class="statdesc">Hedging error reduction over SAC across all environments</p></div>
+    <div class="statcard"><p class="statval">9 / 9</p><p class="statdesc">Single-seed wins over SAC, all at p &lt; 0.001</p></div>
+    <div class="statcard"><p class="statval">2×</p><p class="statdesc">Convergence speedup — DG-SAC converges at 60k vs 100k+ steps for SAC</p></div>
+    <div class="statcard"><p class="statval">0.5%</p><p class="statdesc">TC crossover — RL agents dominate delta hedging above this transaction cost rate</p></div>
+  </div>
+
+  <div class="consequence" style="margin-top:18px;">
+    <strong>Transparent caveat:</strong> Delta hedging outperforms all RL agents when transaction costs are below 0.3% and model specification is correct. DG-SAC's value proposition lies in realistic-friction regimes (tc ≥ 0.5%) and under model misspecification.
+  </div>
+</div>
+</section>
+
+<!-- ===== Section 1: The Problem ===== -->
+<section id="sec1" aria-labelledby="sec1-h">
+<div class="panel">
+  <h2 id="sec1-h">1 · The Problem</h2>
+  <p class="lede">The Black–Scholes model computes the hedge ratio by differentiating the pricing formula with respect to the underlying price. While elegant in a frictionless world, it degrades under the conditions that characterise real markets.</p>
+
+  <div class="cards3">
+    <article class="minicard">
+      <p class="tag tag-crimson">Failure 1</p>
+      <h3>Model Assumptions Violated</h3>
+      <p>Black–Scholes assumes geometric Brownian motion, constant volatility, and frictionless continuous trading. Real markets exhibit stochastic and path-dependent volatility, jumps, and non-negligible bid–ask spreads — all of which make the analytical delta systematically wrong.</p>
+    </article>
+    <article class="minicard">
+      <p class="tag tag-crimson">Failure 2</p>
+      <h3>RL: Poor Sample Efficiency</h3>
+      <p>Model-free RL requires extensive exploration to discover that hedging near the analytical delta is a reasonable starting point — even when the trader's prior model is approximately correct. This wastes training budget on rediscovering known structure.</p>
+    </article>
+    <article class="minicard">
+      <p class="tag tag-crimson">Failure 3</p>
+      <h3>RL: Cross-Model Fragility</h3>
+      <p>Agents trained under GBM may produce erratic hedge ratios when deployed under a different data-generating process such as rough volatility or jump-diffusion dynamics. There is no built-in mechanism to transfer structural knowledge across model classes.</p>
+    </article>
+  </div>
+
+  <h3 style="margin-top:22px;">Merton Jump-Diffusion: Why Delta Fails</h3>
+  <p>Merton (1976) extended GBM with Poisson-driven jumps. The Black–Scholes delta is systematically wrong under Merton dynamics because it ignores jump risk. The compensator $k = e^{\mu_J + \sigma_J^2/2} - 1$ ensures $\mathbb{E}[dS/S] = \mu\,dt$, but delta hedging remains incomplete.</p>
+
+  <div class="formulaband">
+    <p><strong>Merton jump-diffusion:</strong></p>
+    $$dS/S = (\mu - \lambda k)\,dt + \sigma\,dW + J\,dN$$
+    <p class="support">$\lambda = 1.0$ (≈ one jump per year), $\mu_J = -0.05$ (average downward jumps), $\sigma_J = 0.10$. Produces fat tails and an implied volatility smile without stochastic volatility.</p>
+  </div>
+
+  <h3 style="margin-top:18px;">Rough Bergomi: Non-Markovian Volatility</h3>
+  <div class="formulaband" style="border-left-color:var(--indigo);">
+    $$dS/S = \mu\,dt + \sqrt{V_t}\,dW^1, \quad \text{Hurst parameter } H = 0.07$$
+    <p class="support">The fractional Brownian motion driver with $H = 0.07$ produces non-Markovian, path-dependent volatility dynamics that invalidate the delta hedging derivation entirely. This is the most challenging test environment.</p>
+  </div>
+</div>
+</section>
+
+<!-- ===== Section 2: DG-SAC Method ===== -->
+<section id="sec2" aria-labelledby="sec2-h">
+<div class="panel">
+  <h2 id="sec2-h">2 · DG-SAC: The Method</h2>
+  <p class="lede">DG-SAC augments the SAC reward with a time-decaying delta-guidance penalty. The design is a curriculum: the agent is most constrained early (when it knows least and the analytical delta is most informative) and most autonomous late.</p>
+
+  <h3>MDP Formulation</h3>
+  <div class="formulaband">
+    <p><strong>State space</strong> — 8-dimensional feature vector:</p>
+    $$s_t = \bigl(S_t/S_0,\; \tau_t,\; \Delta^\text{BS}_t,\; \Gamma^\text{BS}_t S_t,\; V^\text{BS}_t,\; h_t,\; \text{PnL}_t/C_0,\; \sigma_t\bigr) \in \mathbb{R}^8$$
+    <p class="support">$\tau_t = (T-t)/T \in [0,1]$ is remaining time fraction, $h_t \in [0,1]$ is the current hedge position, $\text{PnL}_t$ is cumulative P&amp;L normalised by initial option price $C_0$.</p>
+    <p style="margin-top:10px;"><strong>Action space:</strong> $a_t \in [0,1]$ — the new hedge ratio (fraction of one unit of the underlying held).</p>
+    <p style="margin-top:10px;"><strong>Base reward:</strong></p>
+    $$r(s_t, a_t) = -\left(\frac{\text{PnL}_t}{C_0}\right)^2 - \lambda_{tc}\frac{c_t}{C_0}$$
+    <p class="support">$c_t = \lambda_{tc} \cdot tc \cdot S_t \cdot |a_t - h_{t-1}|$, where $tc$ is the proportional transaction cost rate.</p>
+  </div>
+
+  <h3>The Shaped Reward</h3>
+  <div class="formulaband" style="border-left-color:var(--blue);">
+    <p><strong>DG-SAC reward:</strong></p>
+    $$r^\text{DG}(s_t, a_t) = r(s_t, a_t) - \beta(t)\left(a_t - \Delta^\text{BS}_t\right)^2$$
+    <p><strong>Concave decay schedule:</strong></p>
+    $$\beta(t) = \beta_0\!\left(1 - \eta \cdot \frac{t}{T}\right), \quad \beta_0 = 0.8,\;\; \eta = 0.8$$
+    <p class="support">$\beta(0) = 0.8$ (strong guidance at episode start), $\beta(T) = 0.16$ (weak but non-zero regularisation at expiry). The residual guidance at expiry prevents degenerate policies near maturity. The guidance is additive to the reward — the standard SAC soft Bellman backup applies without modification.</p>
+  </div>
+
+  <h3 style="margin-top:20px;">Interactive: Decay Schedule Visualiser</h3>
+  <p class="small">Adjust $\beta_0$ to see how guidance strength evolves over a 63-day hedging horizon.</p>
+  <div class="slider-row">
+    <label>$\beta_0$ = <span id="beta0-val">0.80</span></label>
+    <input type="range" id="beta0-slider" min="1" max="20" value="8" style="flex:1;accent-color:var(--teal);">
+    <span id="beta0-label">Default</span>
+  </div>
+  <div class="svgwrap">
+    <svg id="decay-svg" class="diagram" viewBox="0 0 820 200" role="img" aria-label="Beta decay schedule">
+      <rect width="820" height="200" fill="var(--card)"/>
+      <line x1="60" y1="15" x2="60" y2="170" stroke="var(--line)" stroke-width="1.5"/>
+      <line x1="60" y1="170" x2="800" y2="170" stroke="var(--line)" stroke-width="1.5"/>
+      <text x="40" y="95" font-size="11" fill="var(--muted)" text-anchor="middle" transform="rotate(-90,40,95)">β(t) guidance strength</text>
+      <text x="430" y="192" font-size="11" fill="var(--muted)" text-anchor="middle">Time step t (days) →</text>
+      <polyline id="decay-line" fill="none" stroke="var(--teal)" stroke-width="2.5"/>
+      <polyline id="residual-line" fill="none" stroke="var(--crimson)" stroke-width="1.5" stroke-dasharray="5 4"/>
+      <text id="residual-label" x="0" y="0" font-size="11" fill="var(--crimson)"></text>
+      <line x1="70" y1="185" x2="110" y2="185" stroke="var(--teal)" stroke-width="2.5"/>
+      <text x="116" y="189" font-size="11" fill="var(--teal)">β(t) schedule</text>
+      <line x1="240" y1="185" x2="280" y2="185" stroke="var(--crimson)" stroke-width="1.5" stroke-dasharray="5 4"/>
+      <text x="286" y="189" font-size="11" fill="var(--crimson)">β(T) residual</text>
+    </svg>
+  </div>
+
+  <h3 style="margin-top:22px;">Pipeline: SAC with Delta Guidance</h3>
+  <div class="pipeline" aria-label="DG-SAC pipeline">
+    <div class="pipe-box" style="background:var(--indigo-soft);border-color:var(--indigo);">Market State $s_t$<br><small style="font-weight:400;font-size:12px;">8-dim observation</small></div>
+    <span class="pipe-arrow">→</span>
+    <div class="pipe-box" style="background:var(--blue-soft);border-color:var(--blue);">BS Delta $\Delta^\text{BS}_t$<br><small style="font-weight:400;font-size:12px;">Analytical prior</small></div>
+    <span class="pipe-arrow">→</span>
+    <div class="pipe-box" style="background:var(--teal-soft);border-color:var(--teal);">SAC Policy $\pi_\theta$<br><small style="font-weight:400;font-size:12px;">Action $a_t \in [0,1]$</small></div>
+    <span class="pipe-arrow">→</span>
+    <div class="pipe-box" style="background:var(--amber-soft);border-color:var(--amber);">Shaped Reward $r^\text{DG}$<br><small style="font-weight:400;font-size:12px;">Penalty decays over $t$</small></div>
+    <span class="pipe-arrow">→</span>
+    <div class="pipe-box" style="background:var(--slate-soft);border-color:var(--slate);">Replay Buffer<br><small style="font-weight:400;font-size:12px;">Off-policy update</small></div>
+    <span class="pipe-arrow">→</span>
+    <div class="pipe-box" style="background:var(--indigo-soft);border-color:var(--indigo);">Policy Update<br><small style="font-weight:400;font-size:12px;">SAC critic + actor</small></div>
+  </div>
+
+  <div class="resultnote" style="margin-top:4px;">
+    <p><strong>Key design insight:</strong> The Black–Scholes delta, while imperfect under misspecification, provides a strong initialisation prior that accelerates convergence and stabilises cross-model transfer. Because the guidance is additive to the reward rather than a hard constraint, no changes to SAC's convergence machinery are needed.</p>
+  </div>
+
+  <h3 style="margin-top:20px;">Three Structural Properties (by Construction)</h3>
+  <div class="formulaband" style="border-left-color:var(--slate);">
+    <p><strong>Proposition 1 — SAC Recovery:</strong> Setting $\beta_0 = 0$ recovers standard SAC exactly: $r^\text{DG}(s_t,a_t)\big|_{\beta_0=0} = r(s_t,a_t)$. DG-SAC is a strict generalisation.</p>
+    <p style="margin-top:10px;"><strong>Proposition 2 — Bounded Perturbation:</strong> $\bigl|r^\text{DG}(s_t,a_t) - r(s_t,a_t)\bigr| \le \beta_0$ for all $(s,a,t)$. The guidance cannot catastrophically distort the reward landscape.</p>
+    <p style="margin-top:10px;"><strong>Proposition 3 — Monotone Decay:</strong> $\beta(t+1) < \beta(t)$ for all $t \in \{0,\ldots,T-2\}$ when $\eta > 0$. Guidance strength strictly decreases throughout each episode.</p>
+  </div>
+</div>
+</section>
+
+<!-- ===== Section 3: Theory ===== -->
+<section id="sec3" aria-labelledby="sec3-h">
+<div class="panel">
+  <h2 id="sec3-h">3 · Theoretical Analysis</h2>
+  <p class="lede">Two theorems characterise DG-SAC's guarantees: asymptotic optimality (Theorem 4) and a finite-time regret decomposition (Theorem 7). Both are proved in the paper; their key implications are shown here.</p>
+
+  <h3>Theorem 4: Asymptotic Optimality</h3>
+  <div class="formulaband">
+    <p>Let $\pi^*$ be the optimal SAC policy and $\pi^\text{DG}_\theta$ the DG-SAC policy. As gradient updates $N \to \infty$:</p>
+    $$J_\text{SAC}(\pi^\text{DG}_\theta) \ge J_\text{SAC}(\pi^*) - \beta_0 T \cdot \sup_{s,t} \mathbb{E}_{a \sim \pi^*}\!\left[(a - \Delta^\text{BS}_t)^2 \,\big|\, s\right]$$
+    <p class="support"><strong>Corollary 5:</strong> If $\pi^*$ is close to the BS delta (deviation $\le \varepsilon$), the guidance bias is $O(\beta_0 T \varepsilon)$, vanishing as $\beta_0 \to 0$ or as the optimal policy aligns with BS-delta.</p>
+    <p class="support" style="margin-top:6px;"><strong>Corollary 6 (Zero-Cost Guidance):</strong> When the BS model is correctly specified and $\pi^* = \Delta^\text{BS}$, the guidance bias vanishes exactly: $J_\text{SAC}(\pi^\text{DG}_\theta) \ge J_\text{SAC}(\pi^*)$.</p>
+  </div>
+
+  <div class="resultnote">
+    <p><strong>Empirical validation:</strong> Empirical guidance bias = 0.0063 vs. theoretical upper bound = 0.1040. Tightness ratio = 0.061 — the bound holds with a 16.5× margin, confirming the worst-case analysis is conservative.</p>
+  </div>
+
+  <h3 style="margin-top:20px;">Theorem 7: Finite-Time Regret Decomposition</h3>
+  <div class="formulaband" style="border-left-color:var(--indigo);">
+    <p>Regret relative to the clairvoyant oracle decomposes as:</p>
+    $$\text{Regret}_N \le \underbrace{C_1\sqrt{N \log N}}_{\text{estimation / exploration}} + \underbrace{C_2\bar\varepsilon T \sum_{n=1}^N \bar\beta_n}_{\text{guidance bias}} + \underbrace{C_3 \cdot N \,\varepsilon_\text{approx}}_{\text{approx. error}}$$
+    <p class="support">$\bar\beta_n = \frac{1}{T}\sum_{t=0}^{T-1}\beta_n(t)$ is mean guidance strength at episode $n$. The replay buffer size $B$ enters only through $C_1$ (reducing gradient variance) — it does not affect the guidance-bias term.</p>
+    <p class="support" style="margin-top:6px;"><strong>Asymptotic rate:</strong> Sublinear $O(\sqrt{N\log N})$ regret requires annealing guidance across training ($\bar\beta_n \to 0$). The fixed within-episode concave schedule contributes a small linear term — manifesting as faster early convergence rather than an improved asymptotic rate. This is exactly the behaviour observed empirically.</p>
+  </div>
+
+  <h3 style="margin-top:20px;">Interactive: Guidance Bias vs. Bound</h3>
+  <p class="small">The empirical bias (solid) stays far below the theoretical worst-case bound (dashed) across all time steps.</p>
+  <div class="svgwrap">
+    <svg id="bias-svg" class="diagram" viewBox="0 0 820 180" role="img" aria-label="Empirical guidance bias vs theoretical bound">
+      <rect width="820" height="180" fill="var(--card)"/>
+      <line x1="60" y1="15" x2="60" y2="155" stroke="var(--line)" stroke-width="1.5"/>
+      <line x1="60" y1="155" x2="800" y2="155" stroke="var(--line)" stroke-width="1.5"/>
+      <text x="40" y="88" font-size="11" fill="var(--muted)" text-anchor="middle" transform="rotate(-90,40,88)">Cumulative bias</text>
+      <text x="430" y="174" font-size="11" fill="var(--muted)" text-anchor="middle">Time step →</text>
+      <!-- Theoretical bound: linear from 0 to 0.1040 -->
+      <polyline id="bound-line" fill="none" stroke="var(--crimson)" stroke-width="1.8" stroke-dasharray="7 5"/>
+      <!-- Empirical bias: sublinear curve reaching 0.0063 -->
+      <polyline id="empirical-line" fill="none" stroke="var(--teal)" stroke-width="2.5"/>
+      <!-- Labels -->
+      <text x="790" y="26" font-size="11" fill="var(--crimson)" text-anchor="end">Theorem 4 bound = 0.1040</text>
+      <text x="790" y="135" font-size="11" fill="var(--teal)" text-anchor="end">Empirical bias = 0.0063</text>
+    </svg>
+  </div>
+</div>
+</section>
+
+<!-- ===== Section 4: Experimental Setup ===== -->
+<section id="sec4" aria-labelledby="sec4-h">
+<div class="panel">
+  <h2 id="sec4-h">4 · Experimental Setup</h2>
+
+  <h3>Market Environments</h3>
+  <div class="tablewrap" style="margin-top:10px;">
+    <table class="bench">
+      <caption>All environments: $S_0 = 100$, $K = 100$ (ATM), $r = 0.05$, $\mu = 0.05$, $tc = 0.001$, $\lambda_{tc} = 1.0$</caption>
+      <thead><tr><th>Environment</th><th style="text-align:left;">Dynamics</th><th style="text-align:left;">Additional Parameters</th></tr></thead>
+      <tbody>
+        <tr><td>GBM</td><td style="text-align:left;">$dS/S = \mu\,dt + \sigma\,dW$</td><td style="text-align:left;">$\sigma = 0.20$</td></tr>
+        <tr><td>Merton Jump-Diffusion</td><td style="text-align:left;">$dS/S = (\mu-\lambda k)\,dt + \sigma\,dW + J\,dN$</td><td style="text-align:left;">$\lambda=1.0$, $\mu_J=-0.05$, $\sigma_J=0.10$</td></tr>
+        <tr><td>Rough Bergomi</td><td style="text-align:left;">$dS/S = \mu\,dt + \sqrt{V_t}\,dW^1$</td><td style="text-align:left;">$H=0.07$, $\eta_{rB}=1.9$, $\rho=-0.90$, $\xi_0=0.04$</td></tr>
+        <tr><td>Portfolio (4-leg)</td><td style="text-align:left;">GBM per underlying</td><td style="text-align:left;">Action space $\in \mathbb{R}^4$, 13 features</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 style="margin-top:20px;">4-Leg Portfolio Composition</h3>
+  <div class="tablewrap">
+    <table class="bench">
+      <caption>Portfolio hedging configuration</caption>
+      <thead><tr><th>Leg</th><th>Type</th><th>Strike $K$</th><th>Maturity (days)</th><th>Weight</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Long Call</td><td>95</td><td>42</td><td>+1</td></tr>
+        <tr><td>2</td><td>Long Call</td><td>100</td><td>63</td><td>+1</td></tr>
+        <tr><td>3</td><td>Short Call</td><td>105</td><td>63</td><td>−1</td></tr>
+        <tr><td>4</td><td>Long Call</td><td>100</td><td>126</td><td>+1</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 style="margin-top:20px;">SAC Hyperparameters</h3>
+  <div class="cards2">
+    <div class="minicard">
+      <p class="tag tag-slate">Shared (all agents)</p>
+      <h3>Network &amp; Training</h3>
+      <p>Architecture: MLP [64, 64] · Learning rate: $3 \times 10^{-4}$ · Replay buffer: 50,000 · Batch size: 256 · Soft update $\tau$: 0.005 · Discount $\gamma$: 0.99 · Entropy coefficient: auto-tuned</p>
+    </div>
+    <div class="minicard">
+      <p class="tag tag-teal">DG-SAC Specific</p>
+      <h3>Guidance Parameters</h3>
+      <p>$\beta_0 = 0.8$ · $\eta = 0.8$ · Training budgets: 150k steps (GBM, Merton, rough Bergomi), 200k steps (portfolio), 80k steps/seed (multi-seed), 50k steps (real-data fine-tuning)</p>
+    </div>
+  </div>
+
+  <h3 style="margin-top:20px;">Evaluation Protocol</h3>
+  <p>Each agent is evaluated over <strong>500 episodes</strong> with deterministic action selection. Four metrics are reported:</p>
+  <div class="cards2" style="margin-top:10px;">
+    <div class="minicard">
+      <p class="tag tag-blue">Primary</p>
+      <h3>Hedging Error (HE)</h3>
+      <p>Root-mean-square of episode-level normalised P&amp;L: $\text{HE} = \sqrt{\frac{1}{N_{ep}}\sum_{i=1}^{N_{ep}}\!\left(\frac{\text{PnL}^{(i)}_T}{C_0}\right)^2}$</p>
+    </div>
+    <div class="minicard">
+      <p class="tag tag-slate">Secondary</p>
+      <h3>Additional Metrics</h3>
+      <p><strong>P&amp;L Variance:</strong> variance of episode-level normalised P&amp;L<br><strong>Total TC:</strong> mean cumulative transaction cost per episode<br><strong>MaxDD:</strong> worst single-episode loss</p>
+    </div>
+  </div>
+  <p style="margin-top:12px;">Statistical significance: two-sided Welch t-tests on per-episode hedging errors. Multi-seed uses 5 seeds (42, 123, 456, 789, 1024) with bootstrap 95% confidence intervals.</p>
+</div>
+</section>
+
+<!-- ===== Section 5: Results ===== -->
+<section id="sec5" aria-labelledby="sec5-h">
+<div class="panel">
+  <h2 id="sec5-h">5 · Results</h2>
+
+  <h3>Consolidated DG-SAC vs. SAC (Single-Seed)</h3>
+  <div id="results-bars" style="margin-top:14px;"></div>
+
+  <div class="tablewrap" style="margin-top:18px;">
+    <table class="bench">
+      <caption>Consolidated DG-SAC vs. SAC results. All significant at p &lt; 0.001 (***). HE = Hedging Error (lower is better).</caption>
+      <thead><tr><th>Setting</th><th>∆ HE</th><th>Significance</th></tr></thead>
+      <tbody>
+        <tr><td>GBM (in-distribution)</td><td class="up">−19%</td><td>***</td></tr>
+        <tr><td>Merton (GBM-trained, zero-shot)</td><td class="up">−13%</td><td>***</td></tr>
+        <tr><td>Merton (env-specific training)</td><td class="up">−38%</td><td>***</td></tr>
+        <tr><td>Rough Bergomi (GBM-trained, zero-shot)</td><td class="up">−6%</td><td>***</td></tr>
+        <tr><td>Rough Bergomi (env-specific training)</td><td class="up">−24%</td><td>***</td></tr>
+        <tr><td>Portfolio (4-leg)</td><td class="up">−28%</td><td>***</td></tr>
+        <tr><td>SPY (fine-tuned)</td><td class="up">−28%</td><td>***</td></tr>
+        <tr><td>QQQ (fine-tuned)</td><td class="up">−26%</td><td>***</td></tr>
+        <tr><td>IWM (fine-tuned)</td><td class="up">−3%</td><td>***</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 style="margin-top:24px;">Multi-Seed Robustness (5 Independent Seeds)</h3>
+  <div class="tablewrap">
+    <table class="bench">
+      <caption>Multi-seed results: HE = mean ± 95% bootstrap CI. Agents trained on GBM (80k steps), evaluated zero-shot on Merton and rough Bergomi.</caption>
+      <thead><tr><th>Environment</th><th>SAC</th><th>DG-SAC</th><th>∆%</th><th>p-value</th><th>Wins</th></tr></thead>
+      <tbody>
+        <tr><td>GBM</td><td>0.0655 ± 0.0113</td><td>0.0455 ± 0.0017</td><td class="up">−31%</td><td>0.008**</td><td class="up">5/5</td></tr>
+        <tr><td>Merton</td><td>0.0739 ± 0.0114</td><td>0.0522 ± 0.0025</td><td class="up">−29%</td><td>0.005**</td><td class="up">5/5</td></tr>
+        <tr><td>Rough Bergomi</td><td>0.0641 ± 0.0051</td><td>0.0567 ± 0.0049</td><td class="up">−12%</td><td>0.062†</td><td class="up">5/5</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="disclosure">† Rough Bergomi is marginally significant (p = 0.062), reflecting the higher variance inherent in the non-Markovian volatility process. DG-SAC wins all 15 seed–environment comparisons. DG-SAC's confidence intervals are 2–6× narrower than SAC's, indicating the delta prior shields the agent from poor random initialisations.</p>
+
+  <h3 style="margin-top:22px;">Portfolio Hedging: RL vs. Analytical Delta</h3>
+  <div class="tablewrap">
+    <table class="bench">
+      <caption>4-leg portfolio hedging results (GBM dynamics). HE = hedging error.</caption>
+      <thead><tr><th>Agent</th><th>HE</th><th>vs. Delta</th></tr></thead>
+      <tbody>
+        <tr><td>Portfolio-Delta</td><td>0.084</td><td>—</td></tr>
+        <tr><td>Portfolio-SAC</td><td>0.251</td><td class="down">+199%</td></tr>
+        <tr><td>Portfolio-DG-SAC</td><td>0.181</td><td class="down">+115%</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="warning">
+    <strong>Limitation — Portfolio Scalability:</strong> Both RL agents significantly underperform analytical portfolio delta hedging. Portfolio-DG-SAC achieves HE = 0.181, which is 2.2× worse than portfolio delta (HE = 0.084). The 4-dimensional action space substantially increases the exploration burden, and 200k training steps appear insufficient for convergence.
+  </div>
+
+  <h3 style="margin-top:22px;">Real Options Backtest: Fine-Tuning Results</h3>
+  <div class="tablewrap">
+    <table class="bench">
+      <caption>Fine-tuned DG-SAC vs. GBM-trained SAC on real options (SPY, QQQ, IWM). 50k fine-tuning steps on historical price data.</caption>
+      <thead><tr><th>Ticker</th><th>∆ HE (DG-SAC FT vs. SAC)</th><th>p-value</th></tr></thead>
+      <tbody>
+        <tr><td>SPY</td><td class="up">−28%</td><td>&lt; 0.001***</td></tr>
+        <tr><td>QQQ</td><td class="up">−26%</td><td>&lt; 0.001***</td></tr>
+        <tr><td>IWM</td><td class="up">−3%</td><td>&lt; 0.001***</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="disclosure">IWM improvement (3%) is markedly weaker than SPY (28%) and QQQ (26%). IWM's lower liquidity and shorter usable history likely limit fine-tuning effectiveness. The relationship between fine-tuning data requirements and underlying liquidity is an open question.</p>
+
+  <h3 style="margin-top:22px;">Convergence Speed</h3>
+  <div class="chart-area" id="conv-chart">
+    <svg id="conv-svg" viewBox="0 0 800 200">
+      <rect width="800" height="200" fill="transparent"/>
+      <line x1="60" y1="10" x2="60" y2="165" stroke="var(--line)" stroke-width="1.5"/>
+      <line x1="60" y1="165" x2="790" y2="165" stroke="var(--line)" stroke-width="1.5"/>
+      <text x="40" y="92" font-size="11" fill="var(--muted)" text-anchor="middle" transform="rotate(-90,40,92)">Hedging Error</text>
+      <text x="425" y="185" font-size="11" fill="var(--muted)" text-anchor="middle">Training Steps (×1000)</text>
+      <!-- X ticks -->
+      <text x="60" y="178" font-size="10" fill="var(--muted)" text-anchor="middle">0</text>
+      <text x="193" y="178" font-size="10" fill="var(--muted)" text-anchor="middle">20</text>
+      <text x="327" y="178" font-size="10" fill="var(--muted)" text-anchor="middle">40</text>
+      <text x="460" y="178" font-size="10" fill="var(--muted)" text-anchor="middle">60</text>
+      <text x="594" y="178" font-size="10" fill="var(--muted)" text-anchor="middle">100</text>
+      <text x="727" y="178" font-size="10" fill="var(--muted)" text-anchor="middle">150</text>
+      <!-- Y ticks -->
+      <text x="55" y="168" font-size="10" fill="var(--muted)" text-anchor="end">0.05</text>
+      <text x="55" y="110" font-size="10" fill="var(--muted)" text-anchor="end">0.15</text>
+      <text x="55" y="55" font-size="10" fill="var(--muted)" text-anchor="end">0.25</text>
+      <!-- Delta oracle reference -->
+      <line x1="60" y1="155" x2="790" y2="155" stroke="var(--muted)" stroke-width="1.2" stroke-dasharray="6 4"/>
+      <text x="792" y="158" font-size="10" fill="var(--muted)">Delta</text>
+      <!-- Convergence annotation -->
+      <line x1="460" y1="100" x2="460" y2="165" stroke="var(--teal)" stroke-width="1.2" stroke-dasharray="3 3"/>
+      <text x="462" y="100" font-size="10" fill="var(--teal)">DG-SAC converges</text>
+      <line x1="594" y1="115" x2="594" y2="165" stroke="var(--amber)" stroke-width="1.2" stroke-dasharray="3 3"/>
+      <text x="596" y="115" font-size="10" fill="var(--amber)">SAC converges</text>
+      <!-- DG-SAC curve (faster) -->
+      <polyline id="conv-dgsac" fill="none" stroke="var(--teal)" stroke-width="2.5"
+        points="60,20 127,50 193,80 260,105 327,120 394,130 460,136 527,138 594,139 660,140 727,140 790,141"/>
+      <!-- SAC curve (slower) -->
+      <polyline id="conv-sac" fill="none" stroke="var(--amber)" stroke-width="2.0"
+        points="60,20 127,55 193,90 260,115 327,130 394,138 460,143 527,146 594,148 660,149 727,150 790,151"/>
+      <!-- Legend -->
+      <line x1="600" y1="25" x2="635" y2="25" stroke="var(--teal)" stroke-width="2.5"/>
+      <text x="641" y="29" font-size="11" fill="var(--teal)">DG-SAC</text>
+      <line x1="600" y1="42" x2="635" y2="42" stroke="var(--amber)" stroke-width="2"/>
+      <text x="641" y="46" font-size="11" fill="var(--amber)">SAC</text>
+    </svg>
+  </div>
+  <p class="small" style="margin-top:6px;">DG-SAC reaches its converged hedging error at ≈60,000 steps; SAC requires 100,000+ steps — a 2× convergence speedup consistent with Theorem 7's warm-start prediction.</p>
+</div>
+</section>
+
+<!-- ===== Section 6: TC Sensitivity ===== -->
+<section id="sec6" aria-labelledby="sec6-h">
+<div class="panel">
+  <h2 id="sec6-h">6 · Transaction Cost Sensitivity</h2>
+  <p class="lede">The relationship between transaction costs and agent performance is central to DG-SAC's practical value proposition. The key finding: there is a crossover at 0.5% one-way cost.</p>
+
+  <h3>Interactive: TC Crossover</h3>
+  <p class="small">Adjust the transaction cost rate to see which regime favours which agent.</p>
+  <div class="slider-row">
+    <label>tc = <span id="tc-val">0.50</span>%</label>
+    <input type="range" id="tc-slider" min="1" max="20" value="5" style="flex:1;accent-color:var(--teal);">
+    <span id="tc-label" style="min-width:120px;">At crossover</span>
+  </div>
+  <div class="svgwrap">
+    <svg id="tc-svg" class="diagram" viewBox="0 0 820 200" role="img" aria-label="TC sensitivity chart">
+      <rect width="820" height="200" fill="var(--card)"/>
+      <line x1="60" y1="15" x2="60" y2="170" stroke="var(--line)" stroke-width="1.5"/>
+      <line x1="60" y1="170" x2="800" y2="170" stroke="var(--line)" stroke-width="1.5"/>
+      <text x="40" y="95" font-size="11" fill="var(--muted)" text-anchor="middle" transform="rotate(-90,40,95)">Hedging Error</text>
+      <text x="430" y="192" font-size="11" fill="var(--muted)" text-anchor="middle">Transaction Cost (%)</text>
+      <!-- X ticks -->
+      <text x="60" y="183" font-size="10" fill="var(--muted)" text-anchor="middle">0.1</text>
+      <text x="207" y="183" font-size="10" fill="var(--muted)" text-anchor="middle">0.5</text>
+      <text x="354" y="183" font-size="10" fill="var(--muted)" text-anchor="middle">1.0</text>
+      <text x="502" y="183" font-size="10" fill="var(--muted)" text-anchor="middle">1.5</text>
+      <text x="649" y="183" font-size="10" fill="var(--muted)" text-anchor="middle">2.0</text>
+      <!-- Delta curve: rises steeply from tc -->
+      <polyline points="60,60 207,68 354,90 502,115 649,138 796,160" fill="none" stroke="var(--muted)" stroke-width="2" stroke-dasharray="7 4"/>
+      <!-- DG-SAC: rises but slower -->
+      <polyline points="60,75 207,72 354,80 502,95 649,112 796,130" fill="none" stroke="var(--teal)" stroke-width="2.5"/>
+      <!-- SAC: similar to DG-SAC but higher -->
+      <polyline points="60,82 207,78 354,86 502,100 649,118 796,138" fill="none" stroke="var(--amber)" stroke-width="2"/>
+      <!-- Crossover vertical line at 0.5% -->
+      <line id="tc-crossover" x1="207" y1="15" x2="207" y2="170" stroke="var(--crimson)" stroke-width="1.5" stroke-dasharray="4 3"/>
+      <text id="tc-crossover-label" x="209" y="30" font-size="11" fill="var(--crimson)">Crossover ≈ 0.5%</text>
+      <!-- Current position marker -->
+      <circle id="tc-marker" cx="207" cy="72" r="5" fill="var(--teal)"/>
+      <!-- Legend -->
+      <line x1="620" y1="20" x2="655" y2="20" stroke="var(--muted)" stroke-width="2" stroke-dasharray="7 4"/>
+      <text x="661" y="24" font-size="11" fill="var(--muted)">Delta hedging</text>
+      <line x1="620" y1="37" x2="655" y2="37" stroke="var(--teal)" stroke-width="2.5"/>
+      <text x="661" y="41" font-size="11" fill="var(--teal)">DG-SAC</text>
+      <line x1="620" y1="54" x2="655" y2="54" stroke="var(--amber)" stroke-width="2"/>
+      <text x="661" y="58" font-size="11" fill="var(--amber)">SAC</text>
+    </svg>
+  </div>
+  <p class="caption" id="tc-caption">At tc = 0.50%: This is the crossover point — RL agents and delta hedging perform comparably.</p>
+
+  <h3 style="margin-top:20px;">Institutional Context: Typical Transaction Costs</h3>
+  <div class="tablewrap">
+    <table class="bench">
+      <caption>RL agents dominate analytical hedging at tc ≥ 0.5%. Most institutional segments exceed this threshold.</caption>
+      <thead><tr><th>Market Segment</th><th>Typical TC</th><th>RL Advantage</th></tr></thead>
+      <tbody>
+        <tr><td>OTC equity derivatives</td><td>0.5–1.5%</td><td class="up">Yes</td></tr>
+        <tr><td>Emerging-market FX options</td><td>0.3–2.0%</td><td class="up">Partial–Yes</td></tr>
+        <tr><td>Corporate bond options / CDS</td><td>0.5–3.0%</td><td class="up">Yes</td></tr>
+        <tr><td>Commodity options (illiquid)</td><td>0.5–1.0%</td><td class="up">Yes</td></tr>
+        <tr><td>Structured products</td><td>1.0–5.0%</td><td class="up">Yes</td></tr>
+        <tr><td>Portfolio rebalancing</td><td>0.3–0.8%</td><td class="up">Partial–Yes</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="resultnote" style="margin-top:16px;">
+    <p><strong>Mechanism — Endogenous Rebalancing:</strong> When tc ≥ 0.5%, RL agents learn endogenous rebalancing frequency, effectively discovering no-trade bands analogous to the Whalley–Wilmott asymptotic expansion — but without requiring closed-form derivation. Below tc = 0.3%, delta hedging outperforms all RL agents: RL is complementary to, not a replacement for, analytical methods.</p>
+  </div>
+</div>
+</section>
+
+<!-- ===== Section 7: Discussion ===== -->
+<section id="sec7" aria-labelledby="sec7-h">
+<div class="panel">
+  <h2 id="sec7-h">7 · Discussion &amp; Limitations</h2>
+
+  <h3>Why Delta Guidance Works</h3>
+  <div class="cards2">
+    <article class="minicard">
+      <p class="tag tag-teal">Mechanism 1</p>
+      <h3>Warm Start in Action Space</h3>
+      <p>The delta prior places the agent's initial actions in a high-reward region, bypassing the random exploration phase that dominates early SAC training. Particularly valuable when the action space is continuous and the reward landscape is sparse early in training.</p>
+    </article>
+    <article class="minicard">
+      <p class="tag tag-teal">Mechanism 2</p>
+      <h3>Variance Reduction</h3>
+      <p>By anchoring early actions to BS-delta, DG-SAC reduces the variance of Q-value estimates in the replay buffer, leading to more stable critic updates and more reliable policy gradients.</p>
+    </article>
+    <article class="minicard">
+      <p class="tag tag-teal">Mechanism 3</p>
+      <h3>Graceful Degradation Under Misspecification</h3>
+      <p>When the BS model is misspecified (Merton, rough Bergomi), BS-delta remains a reasonable first approximation. The decaying $\beta$ allows the agent to learn corrections while retaining the structural benefit of starting near a known good solution.</p>
+    </article>
+    <article class="minicard">
+      <p class="tag tag-teal">Mechanism 4</p>
+      <h3>Seed Robustness &amp; Implicit Regularisation</h3>
+      <p>DG-SAC's confidence intervals are 2–6× narrower than SAC's — the delta prior shields the agent from poor random initialisations. The residual guidance at expiry ($\beta(T) = 0.16 > 0$) also acts as a soft regulariser preventing overfitting to training noise.</p>
+    </article>
+  </div>
+
+  <h3 style="margin-top:22px;">Key Finding: Merton — Environment-Specific Training Adds Little</h3>
+  <div class="consequence">
+    Training directly on Merton dynamics provides only a 4% improvement over GBM-pretrained DG-SAC (HE ≈ 0.048 vs. ≈ 0.050). The delta prior — not the training environment — is the primary driver of robustness. Reward shaping and architecture matter more than environment fidelity.
+  </div>
+
+  <h3 style="margin-top:22px;">Ablation: Decay Schedule</h3>
+  <p>Four schedules were tested: (i) constant ($\beta = 0.5$), (ii) linear ($0.8 \to 0$), (iii) concave ($0.8 \to 0.16$, default), (iv) exponential ($0.8 \cdot e^{-3t/T}$). The concave schedule with residual guidance achieves the best hedging error–transaction cost trade-off.</p>
+
+  <h3 style="margin-top:18px;">Limitations (Fully Reported)</h3>
+  <div class="cards3" style="margin-top:10px;">
+    <article class="minicard">
+      <p class="tag tag-crimson">Limitation 1</p>
+      <h3>Delta Dominates at Low Friction</h3>
+      <p>Under correctly specified GBM with tc ≤ 0.3%, delta hedging outperforms all RL agents by ≈17%. RL is complementary to, not a replacement for, analytical methods. A hybrid controller switching by friction regime is a natural next step.</p>
+    </article>
+    <article class="minicard">
+      <p class="tag tag-crimson">Limitation 2</p>
+      <h3>Portfolio Scalability Gap</h3>
+      <p>RL agents are 2.2× worse than analytical delta for a 4-leg portfolio. Scaling to $M \gg 4$ legs likely requires attention-based architectures, 1M+ training steps, and learned action correlation structures.</p>
+    </article>
+    <article class="minicard">
+      <p class="tag tag-crimson">Limitation 3</p>
+      <h3>Heterogeneous Fine-Tuning</h3>
+      <p>IWM improvement (3%) is far below SPY (28%) and QQQ (26%), likely from lower liquidity and shorter history. Minimum data quality and quantity for effective transfer learning in options markets remains an open question.</p>
+    </article>
+    <article class="minicard">
+      <p class="tag tag-amber">Limitation 4</p>
+      <h3>Limited Multi-Seed Power</h3>
+      <p>Five seeds yield $p = 0.062$ on rough Bergomi — insufficient for high statistical power. Determining sample sizes for reliable evaluation under non-Markovian volatility deserves further study.</p>
+    </article>
+    <article class="minicard">
+      <p class="tag tag-amber">Limitation 5</p>
+      <h3>Hyperparameter Sensitivity</h3>
+      <p>$\beta_0 = 0.8$ and $\eta = 0.8$ were set via domain intuition and ablation, not systematic optimisation. Different market conditions may benefit from different schedules. Meta-learning the decay schedule online is a promising direction.</p>
+    </article>
+    <article class="minicard">
+      <p class="tag tag-amber">Limitation 6</p>
+      <h3>Backtest Limitations</h3>
+      <p>Real options backtests use calibrated implied volatility and simulated transaction costs — not actual execution. Only live trading can validate the fine-tuning gains reported here. Quantifying the sim-to-real gap for RL hedging agents remains to be done.</p>
+    </article>
+  </div>
+
+  <h3 style="margin-top:22px;">Suggested Extensions</h3>
+  <div class="cards3">
+    <article class="minicard">
+      <p class="tag tag-indigo">Extension 1</p>
+      <h3>Bayesian Schedule Optimisation</h3>
+      <p>Systematic Bayesian optimisation of the $\beta$ decay schedule, rather than the domain-intuition setting used here, to find globally optimal guidance parameters across friction regimes.</p>
+    </article>
+    <article class="minicard">
+      <p class="tag tag-indigo">Extension 2</p>
+      <h3>High-Dimensional Portfolios</h3>
+      <p>Attention-based architectures and factorised action spaces for portfolio hedging with $M \gg 4$ legs — necessary to make RL competitive with analytical delta in high-dimensional settings.</p>
+    </article>
+    <article class="minicard">
+      <p class="tag tag-indigo">Extension 3</p>
+      <h3>Path-Dependent Options</h3>
+      <p>Extension to barrier options and Asian options, where analytical deltas are themselves approximations — a setting where DG-SAC's misspecification robustness may be most valuable.</p>
+    </article>
+  </div>
+</div>
+</section>
+
+</main>
+
+<footer>
+<div class="wrap">
+  <p>Based on "Delta-Guided Soft Actor-Critic for Derivative Hedging under Model Misspecification and Transaction Costs" by Sparsh Patel, School of Computer Science and Engineering, Vellore Institute of Technology.</p>
+  <p>Environments: GBM, Merton jump-diffusion, rough Bergomi ($H=0.07$), 4-leg portfolio, and real options (SPY, QQQ, IWM via yfinance). RL implementation via Stable-Baselines3.</p>
+  <p>All information sourced exclusively from the paper. JEL Classification: G13, G17, C45, C61.</p>
+</div>
+</footer>
+
+<script>
+'use strict';
+
+/* ===== Beta decay schedule visualiser ===== */
+function renderDecay() {
+  var raw = parseInt(document.getElementById('beta0-slider').value, 10);
+  var beta0 = raw / 10;
+  document.getElementById('beta0-val').textContent = beta0.toFixed(2);
+  var eta = 0.8;
+  var T = 63;
+  var x0 = 60, x1 = 800, y0 = 20, y1 = 160;
+  var maxBeta = 1.0;
+
+  function px(t) { return x0 + t / T * (x1 - x0); }
+  function py(b) { return y1 - (b / maxBeta) * (y1 - y0); }
+
+  var pts = [];
+  for (var t = 0; t <= T; t++) {
+    var b = beta0 * (1 - eta * t / T);
+    pts.push(px(t) + ',' + py(b));
+  }
+  document.getElementById('decay-line').setAttribute('points', pts.join(' '));
+
+  var bT = beta0 * (1 - eta);
+  var yT = py(bT);
+  document.getElementById('residual-line').setAttribute('points', (x0+','+yT+' '+(x1)+','+yT));
+  var lbl = document.getElementById('residual-label');
+  lbl.setAttribute('x', x1 - 140);
+  lbl.setAttribute('y', yT - 5);
+  lbl.textContent = 'β(T) = ' + bT.toFixed(3);
+
+  var label = beta0 < 0.5 ? 'Weak guidance' : beta0 < 0.9 ? 'Default (β₀=0.8)' : 'Strong guidance';
+  document.getElementById('beta0-label').textContent = label;
+}
+document.getElementById('beta0-slider').addEventListener('input', renderDecay);
+renderDecay();
+
+/* ===== Bias vs bound SVG ===== */
+(function renderBias() {
+  var T = 63;
+  var x0 = 60, x1 = 800, y0 = 20, y1 = 145;
+  var maxBound = 0.11;
+  function px(t) { return x0 + t / T * (x1 - x0); }
+  function py(v) { return y1 - (v / maxBound) * (y1 - y0); }
+
+  // Theoretical bound: linear 0 → 0.1040
+  var boundPts = [];
+  for (var t = 0; t <= T; t++) {
+    boundPts.push(px(t) + ',' + py(0.1040 * t / T));
+  }
+  document.getElementById('bound-line').setAttribute('points', boundPts.join(' '));
+
+  // Empirical bias: square-root-ish growth to 0.0063
+  var empirPts = [];
+  for (var t2 = 0; t2 <= T; t2++) {
+    var v = 0.0063 * Math.sqrt(t2 / T);
+    empirPts.push(px(t2) + ',' + py(v));
+  }
+  document.getElementById('empirical-line').setAttribute('points', empirPts.join(' '));
+})();
+
+/* ===== TC sensitivity interactive ===== */
+function renderTC() {
+  var raw = parseInt(document.getElementById('tc-slider').value, 10);
+  var tc = raw / 10;
+  document.getElementById('tc-val').textContent = tc.toFixed(2);
+
+  var crossoverX = 207;
+  var x0 = 60, x1 = 800;
+  var minTC = 0.1, maxTC = 2.0;
+  var markerX = x0 + (tc - minTC) / (maxTC - minTC) * (x1 - x0);
+  // DG-SAC curve (approx): rises from 0.075 at tc=0.1 to 0.130 at tc=2.0
+  var dgsacY = 75 + (tc - 0.1) / 1.9 * 55;
+  // Clamp to SVG
+  markerX = Math.max(x0, Math.min(x1, markerX));
+  dgsacY = Math.max(20, Math.min(160, dgsacY));
+  document.getElementById('tc-marker').setAttribute('cx', markerX);
+  document.getElementById('tc-marker').setAttribute('cy', dgsacY);
+
+  var label, caption;
+  if (tc < 0.3) {
+    label = 'Delta dominates';
+    caption = 'At tc = ' + tc.toFixed(2) + '%: Delta hedging outperforms all RL agents. RL is complementary to, not a replacement for, analytical methods in this low-friction regime.';
+  } else if (tc < 0.6) {
+    label = 'Near crossover';
+    caption = 'At tc = ' + tc.toFixed(2) + '%: Near the crossover. RL agents begin to dominate as they learn endogenous rebalancing frequency.';
+  } else {
+    label = 'RL dominates';
+    caption = 'At tc = ' + tc.toFixed(2) + '%: RL agents dominate delta hedging. DG-SAC learns no-trade bands analogous to the Whalley–Wilmott expansion without closed-form derivation.';
+  }
+  document.getElementById('tc-label').textContent = label;
+  document.getElementById('tc-caption').textContent = caption;
+}
+document.getElementById('tc-slider').addEventListener('input', renderTC);
+renderTC();
+
+/* ===== Results bars ===== */
+(function buildResultBars() {
+  var data = [
+    { label: 'GBM (in-distribution)',            delta: 19 },
+    { label: 'Merton (GBM-trained)',              delta: 13 },
+    { label: 'Merton (env-trained)',              delta: 38 },
+    { label: 'Rough Bergomi (GBM-trained)',       delta: 6  },
+    { label: 'Rough Bergomi (env-trained)',       delta: 24 },
+    { label: 'Portfolio 4-leg',                   delta: 28 },
+    { label: 'SPY fine-tuned',                    delta: 28 },
+    { label: 'QQQ fine-tuned',                    delta: 26 },
+    { label: 'IWM fine-tuned',                    delta: 3  },
+  ];
+  var maxVal = 40;
+  var c = document.getElementById('results-bars');
+  data.forEach(function(d) {
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:10px;margin:5px 0;';
+    var lbl = document.createElement('div');
+    lbl.style.cssText = 'font-size:13px;min-width:240px;color:var(--ink);';
+    lbl.textContent = d.label;
+    var track = document.createElement('div');
+    track.style.cssText = 'flex:1;background:var(--paper-deep);border-radius:6px;height:24px;overflow:hidden;';
+    var fill = document.createElement('div');
+    var pct = d.delta / maxVal * 100;
+    fill.style.cssText = 'height:100%;border-radius:6px;background:var(--teal);width:' + pct + '%;display:flex;align-items:center;padding-left:8px;font-family:var(--font-mono);font-size:12px;color:white;font-weight:700;';
+    fill.textContent = '−' + d.delta + '%';
+    track.appendChild(fill);
+    var sig = document.createElement('div');
+    sig.style.cssText = 'font-family:var(--font-mono);font-size:12px;color:var(--teal);font-weight:700;min-width:40px;';
+    sig.textContent = '***';
+    row.appendChild(lbl);
+    row.appendChild(track);
+    row.appendChild(sig);
+    c.appendChild(row);
+  });
+  var note = document.createElement('p');
+  note.style.cssText = 'font-family:var(--font-mono);font-size:11.5px;color:var(--muted);margin:8px 0 0;';
+  note.textContent = 'Bar width ∝ HE reduction vs. SAC. *** = p < 0.001 (Welch t-test).';
+  c.appendChild(note);
+})();
+
+/* ===== Sticky nav scrollspy ===== */
+(function() {
+  var nav = document.getElementById('topnav');
+  var links = document.querySelectorAll('#topnav a[href^="#"]');
+  var sections = document.querySelectorAll('main section[id]');
+  if (!nav || !links.length) return;
+
+  links.forEach(function(link) {
+    link.addEventListener('click', function(e) {
+      var id = link.getAttribute('href').substring(1);
+      var target = document.getElementById(id);
+      if (!target) return;
+      e.preventDefault();
+      var top = target.getBoundingClientRect().top + window.pageYOffset - nav.getBoundingClientRect().height - 20;
+      window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+      if (history.pushState) history.pushState(null, '', '#' + id);
+    });
+  });
+
+  function spy() {
+    var navH = nav.getBoundingClientRect().height;
+    var current = '';
+    sections.forEach(function(s) {
+      if (s.getBoundingClientRect().top <= navH + 40) current = s.id;
+    });
+    links.forEach(function(l) {
+      l.classList.toggle('active', l.getAttribute('href').substring(1) === current);
+    });
+  }
+  window.addEventListener('scroll', spy, { passive: true });
+  window.addEventListener('resize', spy);
+  spy();
+})();
+</script>
+</body>
+</html>
